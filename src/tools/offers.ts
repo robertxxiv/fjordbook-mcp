@@ -2,35 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, mutate, cp } from "../client.js";
 import { R, W, D, ok, err } from "./shared.js";
+import { draftSchema, sendSchema } from "./orderConfirmations.js";
 
-const draftSchema = z.object({
-    issueDate: z.string().optional().describe("YYYY-MM-DD"),
-    daysUntilDueDate: z.number().int().optional(),
-    invoiceText: z.string().optional(),
-    yourReference: z.string().optional(),
-    ourReference: z.string().optional(),
-    orderReference: z.string().optional(),
-    lines: z
-        .array(
-            z.object({
-                description: z.string().optional(),
-                netPrice: z.number().int().optional(),
-                vat: z.number().int().optional(),
-                vatType: z.string().optional(),
-                unit: z.string().optional(),
-                unitPrice: z.number().int().optional(),
-                quantity: z.number().optional(),
-                discount: z.number().optional(),
-                productId: z.number().int().optional(),
-                account: z.string().optional(),
-            }),
-        )
-        .optional(),
-    currency: z.string().optional(),
-    contactId: z.number().int().optional(),
-    contactPersonId: z.number().int().optional(),
-    projectId: z.number().int().optional(),
-});
+const pagination = {
+    page: z.number().int().optional().describe("Page number, starting at 0"),
+    pageSize: z.number().int().optional().describe("Results per page (max 100)"),
+};
+
+const draftId = z.number().int().describe("Draft ID");
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -38,10 +17,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns all offers for the company",
-            inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-            }),
+            inputSchema: z.object(pagination),
         },
         async (p) => {
             try {
@@ -57,7 +33,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific offer by ID",
-            inputSchema: z.object({ offerId: z.number().int() }),
+            inputSchema: z.object({ offerId: z.string().describe("Offer ID") }),
         },
         async ({ offerId }) => {
             try {
@@ -89,7 +65,9 @@ export function register(server: McpServer) {
         {
             ...W,
             description: "Creates the first offer number counter",
-            inputSchema: z.object({ value: z.number().int().optional() }),
+            inputSchema: z.object({
+                value: z.number().int().optional().describe("Current value of the counter"),
+            }),
         },
         async (body) => {
             try {
@@ -105,10 +83,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns all offer drafts for the company",
-            inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-            }),
+            inputSchema: z.object(pagination),
         },
         async (p) => {
             try {
@@ -140,7 +115,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific offer draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -156,7 +131,7 @@ export function register(server: McpServer) {
         {
             ...W,
             description: "Updates an offer draft",
-            inputSchema: z.object({ draftId: z.number().int(), ...draftSchema.shape }),
+            inputSchema: z.object({ draftId, ...draftSchema.shape }),
         },
         async ({ draftId, ...body }) => {
             try {
@@ -172,7 +147,7 @@ export function register(server: McpServer) {
         {
             ...D,
             description: "Deletes an offer draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -188,7 +163,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns all attachments for an offer draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -204,7 +179,7 @@ export function register(server: McpServer) {
         {
             ...W,
             description: "Creates a finalized offer from a draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -219,13 +194,10 @@ export function register(server: McpServer) {
         "fiken_send_offer",
         {
             ...W,
-            description: "Sends an offer via email",
+            description: "Sends an offer by email, EHF, eFaktura, SMS or letter",
             inputSchema: z.object({
-                offerId: z.number().int(),
-                method: z.array(z.enum(["email", "auto"])),
-                recipientName: z.string().optional(),
-                recipientEmail: z.string().optional(),
-                message: z.string().optional(),
+                offerId: z.number().int().describe("ID of the offer to send"),
+                ...sendSchema.shape,
             }),
         },
         async (body) => {

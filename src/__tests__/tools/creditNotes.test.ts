@@ -50,14 +50,14 @@ describe("fiken_get_credit_note", () => {
     it("calls GET /creditNotes/{creditNoteId}", async () => {
         const data = { creditNoteId: 1, creditNoteNumber: 1 };
         mockGet.mockResolvedValue(data);
-        const result = await server.getHandler("fiken_get_credit_note")({ creditNoteId: 1 });
+        const result = await server.getHandler("fiken_get_credit_note")({ creditNoteId: "1" });
         expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/creditNotes/1");
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
         mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
-        const result = await server.getHandler("fiken_get_credit_note")({ creditNoteId: 999 });
+        const result = await server.getHandler("fiken_get_credit_note")({ creditNoteId: "999" });
         expect(result.isError).toBe(true);
     });
 });

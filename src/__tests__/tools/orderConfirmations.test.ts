@@ -51,7 +51,7 @@ describe("fiken_get_order_confirmation", () => {
         const data = { confirmationId: 1, confirmationNumber: 1 };
         mockGet.mockResolvedValue(data);
         const result = await server.getHandler("fiken_get_order_confirmation")({
-            confirmationId: 1,
+            confirmationId: "1",
         });
         expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/orderConfirmations/1");
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
@@ -60,7 +60,7 @@ describe("fiken_get_order_confirmation", () => {
     it("returns error on failure", async () => {
         mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
         const result = await server.getHandler("fiken_get_order_confirmation")({
-            confirmationId: 999,
+            confirmationId: "999",
         });
         expect(result.isError).toBe(true);
     });
@@ -114,7 +114,7 @@ describe("fiken_create_invoice_draft_from_order_confirmation", () => {
         const result = await server.getHandler(
             "fiken_create_invoice_draft_from_order_confirmation",
         )({
-            confirmationId: 1,
+            confirmationId: "1",
         });
         expect(mockMutate).toHaveBeenCalledWith(
             "POST",
@@ -128,8 +128,207 @@ describe("fiken_create_invoice_draft_from_order_confirmation", () => {
         const result = await server.getHandler(
             "fiken_create_invoice_draft_from_order_confirmation",
         )({
-            confirmationId: 999,
+            confirmationId: "999",
         });
         expect(result.isError).toBe(true);
+    });
+});
+
+const draftBody = {
+    type: "order_confirmation" as const,
+    daysUntilDueDate: 14,
+    customerId: 5,
+    issueDate: "2026-01-01",
+    lines: [{ quantity: 2, unitPrice: 10000, vatType: "HIGH" }],
+};
+
+describe("fiken_list_order_confirmation_drafts", () => {
+    it("calls GET /orderConfirmations/drafts with params", async () => {
+        const data = [{ draftId: 1 }];
+        mockGet.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_list_order_confirmation_drafts")({
+            page: 1,
+            pageSize: 5,
+        });
+        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/orderConfirmations/drafts", {
+            page: 1,
+            pageSize: 5,
+        });
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_list_order_confirmation_drafts")({
+            page: 1,
+            pageSize: 5,
+        });
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockGet.mockRejectedValue("connection refused");
+        const result = await server.getHandler("fiken_list_order_confirmation_drafts")({
+            page: 1,
+            pageSize: 5,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: connection refused");
+    });
+});
+
+describe("fiken_create_order_confirmation_draft", () => {
+    it("calls POST /orderConfirmations/drafts with body", async () => {
+        const data = { success: true };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_create_order_confirmation_draft")(draftBody);
+        expect(mockMutate).toHaveBeenCalledWith(
+            "POST",
+            "/companies/test-slug/orderConfirmations/drafts",
+            draftBody,
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_create_order_confirmation_draft")(draftBody);
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue("connection refused");
+        const result = await server.getHandler("fiken_create_order_confirmation_draft")(draftBody);
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: connection refused");
+    });
+});
+
+describe("fiken_get_order_confirmation_draft", () => {
+    it("calls GET /orderConfirmations/drafts/{draftId}", async () => {
+        const data = { draftId: 7 };
+        mockGet.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_get_order_confirmation_draft")({
+            draftId: 7,
+        });
+        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/orderConfirmations/drafts/7");
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_get_order_confirmation_draft")({
+            draftId: 7,
+        });
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockGet.mockRejectedValue("connection refused");
+        const result = await server.getHandler("fiken_get_order_confirmation_draft")({
+            draftId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: connection refused");
+    });
+});
+
+describe("fiken_update_order_confirmation_draft", () => {
+    it("calls PUT /orderConfirmations/drafts/{draftId} without draftId in body", async () => {
+        const data = { success: true };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_update_order_confirmation_draft")({
+            draftId: 7,
+            ...draftBody,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "PUT",
+            "/companies/test-slug/orderConfirmations/drafts/7",
+            draftBody,
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_update_order_confirmation_draft")({
+            draftId: 7,
+            ...draftBody,
+        });
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue("connection refused");
+        const result = await server.getHandler("fiken_update_order_confirmation_draft")({
+            draftId: 7,
+            ...draftBody,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: connection refused");
+    });
+});
+
+describe("fiken_delete_order_confirmation_draft", () => {
+    it("calls DELETE /orderConfirmations/drafts/{draftId}", async () => {
+        const data = { success: true };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_delete_order_confirmation_draft")({
+            draftId: 7,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "DELETE",
+            "/companies/test-slug/orderConfirmations/drafts/7",
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_delete_order_confirmation_draft")({
+            draftId: 7,
+        });
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue("connection refused");
+        const result = await server.getHandler("fiken_delete_order_confirmation_draft")({
+            draftId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: connection refused");
+    });
+});
+
+describe("fiken_create_order_confirmation_from_draft", () => {
+    it("calls POST /orderConfirmations/drafts/{draftId}/createOrderConfirmation", async () => {
+        const data = { success: true };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_create_order_confirmation_from_draft")({
+            draftId: 7,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "POST",
+            "/companies/test-slug/orderConfirmations/drafts/7/createOrderConfirmation",
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_create_order_confirmation_from_draft")({
+            draftId: 7,
+        });
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue("connection refused");
+        const result = await server.getHandler("fiken_create_order_confirmation_from_draft")({
+            draftId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: connection refused");
     });
 });
