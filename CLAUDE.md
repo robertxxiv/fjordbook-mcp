@@ -2,7 +2,7 @@
 
 **This file is the master template. No agent loads it automatically.** The
 operational subset that must always apply is mirrored into the instruction files
-that *are* auto-loaded:
+that _are_ auto-loaded:
 
 - `AGENTS.md` in each project — read by Codex (Terra/Sol/Luna) and by Pi.
 - `~/.claude/CLAUDE.md` — read by every Claude session; Claude Code does not
@@ -16,15 +16,15 @@ When this template changes, re-sync those two files. Do not rely on a
 Discovered from the installed tooling on 2026-09-30. Do not substitute guessed
 IDs; re-verify after a CLI update.
 
-| Role | Identifier | Where it is set |
-| --- | --- | --- |
-| Orchestrator | `gpt-5.6-sol`, effort `medium` | `~/.codex/config.toml`: `model`, `model_reasoning_effort` |
-| Orchestration escalation | `gpt-5.6-sol`, effort `high` | per-launch: `-m gpt-5.6-sol -c model_reasoning_effort=high` |
-| Cheap coordination | `gpt-5.6-luna` | per-launch `-m` |
-| Local bounded worker | `Qwen3.8-27B-64K-MTP` is the default; `Qwen-daily-64K` and `Qwen-daily-262K` stay available for wider context. The orchestrator picks per task — see "Local worker model selection". | `~/.pi/agent/settings.json`: `defaultModel`; per-launch `--model` |
-| Default Claude worker | `claude-sonnet-5-5` | per-launch `--model` |
-| Claude escalation | `claude-opus-5-5` | per-launch `--model` |
-| Optional Claude specialist | `claude-fable-5-1` | per-launch `--model`; never a default |
+| Role                       | Identifier                                                                                                                                                                           | Where it is set                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Orchestrator               | `gpt-5.6-sol`, effort `medium`                                                                                                                                                       | `~/.codex/config.toml`: `model`, `model_reasoning_effort`         |
+| Orchestration escalation   | `gpt-5.6-sol`, effort `high`                                                                                                                                                         | per-launch: `-m gpt-5.6-sol -c model_reasoning_effort=high`       |
+| Cheap coordination         | `gpt-5.6-luna`                                                                                                                                                                       | per-launch `-m`                                                   |
+| Local bounded worker       | `Qwen3.8-27B-64K-MTP` is the default; `Qwen-daily-64K` and `Qwen-daily-262K` stay available for wider context. The orchestrator picks per task — see "Local worker model selection". | `~/.pi/agent/settings.json`: `defaultModel`; per-launch `--model` |
+| Default Claude worker      | `claude-sonnet-5-5`                                                                                                                                                                  | per-launch `--model`                                              |
+| Claude escalation          | `claude-opus-5-5`                                                                                                                                                                    | per-launch `--model`                                              |
+| Optional Claude specialist | `claude-fable-5-1`                                                                                                                                                                   | per-launch `--model`; never a default                             |
 
 `claude-haiku-5-5` is rejected by the installed Claude Code catalog — do not
 configure it. Do not make anything depend on Mythos.
@@ -60,6 +60,7 @@ sitting at its shell prompt; it never creates layout itself.
 The primary orchestrator is GPT-5.6 Terra.
 
 Default reasoning level:
+
 - Terra: `model_reasoning_effort = "high"` in `~/.codex/config.toml`.
   (`plan_mode_reasoning_effort` is deliberately left at `high`: planning is
   where Terra should think hardest.) A running Terra session must be restarted
@@ -77,43 +78,43 @@ complexity, not for task size.
 Available workers:
 
 - Claude Sonnet 5.5 (`claude-sonnet-5-5`) — the default strong Claude worker
-  - complex and multi-file implementation
-  - architecture-sensitive changes
-  - difficult debugging and difficult test failures
-  - code review, including review of Qwen-generated code
-  - security-sensitive implementation and review
-  - unfamiliar code, repository-wide reasoning
-  - API, database, concurrency, and integration work
+    - complex and multi-file implementation
+    - architecture-sensitive changes
+    - difficult debugging and difficult test failures
+    - code review, including review of Qwen-generated code
+    - security-sensitive implementation and review
+    - unfamiliar code, repository-wide reasoning
+    - API, database, concurrency, and integration work
 
-  Normally the first Claude model used once a task exceeds Qwen's comfortable
-  scope.
+    Normally the first Claude model used once a task exceeds Qwen's comfortable
+    scope.
 
 - Claude Opus 5.5 (`claude-opus-5-5`) — escalation only
-  - extremely difficult debugging
-  - complex or highly ambiguous architecture
-  - large cross-cutting refactors, high-risk migrations
-  - subtle concurrency, difficult security-sensitive design
-  - conflicting solutions from other agents, or repeated Sonnet failure
-  - high-impact independent review
+    - extremely difficult debugging
+    - complex or highly ambiguous architecture
+    - large cross-cutting refactors, high-risk migrations
+    - subtle concurrency, difficult security-sensitive design
+    - conflicting solutions from other agents, or repeated Sonnet failure
+    - high-impact independent review
 
-  Not for normal implementation.
+    Not for normal implementation.
 
 - Claude Fable 5.1 (`claude-fable-5-1`) — optional specialist, available here
-  - exceptionally large coding tasks, long-horizon autonomous development
-  - repository-scale migrations, research-heavy engineering
+    - exceptionally large coding tasks, long-horizon autonomous development
+    - repository-scale migrations, research-heavy engineering
 
-  It does not replace Opus 5.5 in this workflow and is never a default.
+    It does not replace Opus 5.5 in this workflow and is never a default.
 
 - Pi / Qwen (`Qwen3.8-27B-64K-MTP` default, `Qwen-daily-64K`, `Qwen-daily-262K`)
-  - implementation
-  - tests
-  - repetitive coding
-  - repository exploration
-  - isolated modules
-  - parallel tasks
+    - implementation
+    - tests
+    - repetitive coding
+    - repository exploration
+    - isolated modules
+    - parallel tasks
 
-  Use it aggressively for inexpensive parallel work. Because the local model is
-  quantized, assignments must be bounded, explicit, and independently testable.
+    Use it aggressively for inexpensive parallel work. Because the local model is
+    quantized, assignments must be bounded, explicit, and independently testable.
 
 ## Orchestrator Rules
 
@@ -126,10 +127,10 @@ For each substantial task:
 3. Delegate parallelizable tasks.
 4. Give each worker only the context required for its task.
 5. Require workers to report:
-   - files changed
-   - decisions made
-   - tests performed
-   - unresolved issues
+    - files changed
+    - decisions made
+    - tests performed
+    - unresolved issues
 6. Review worker output before integration.
 7. Resolve conflicting implementations centrally.
 8. Run integration tests after merging work.
@@ -143,25 +144,26 @@ delegatable coding work.
 After planning, before implementation:
 
 1. Classify each plan item as:
-   - orchestrator-only
-   - Claude task
-   - Qwen/Pi task
-   - parallelizable task
+    - orchestrator-only
+    - Claude task
+    - Qwen/Pi task
+    - parallelizable task
 
 2. For every delegatable task, create or reuse a Herdr worker pane.
 
 3. Spawn the appropriate agent using Herdr native agent controls.
 
 4. Send the worker a bounded task with:
-   - goal
-   - relevant files
-   - constraints
-   - acceptance criteria
-   - required validation
+    - goal
+    - relevant files
+    - constraints
+    - acceptance criteria
+    - required validation
 
 5. The orchestrator should remain primarily in coordination/review mode.
 
 The orchestrator may directly edit code only when:
+
 - the change is trivial,
 - delegation would cost more than execution,
 - it is resolving an integration conflict,
@@ -178,22 +180,22 @@ inside the orchestrator session.
 Use the cheapest capable model.
 
 Routine coordination:
-    Luna
+Luna
 
 Normal orchestration:
-    Terra
+Terra
 
 Complex orchestration / architectural reasoning:
-    Sol Medium
+Sol Medium
 
 Implementation:
-    Pi / Qwen
+Pi / Qwen
 
 Complex implementation or review:
-    Claude Sonnet 5.5
+Claude Sonnet 5.5
 
 Hardest Claude escalation:
-    Claude Opus 5.5
+Claude Opus 5.5
 
 Do not use Sol for routine orchestration.
 Do not use Opus for routine implementation.
@@ -203,18 +205,18 @@ Do not use Opus for routine implementation.
 All three local aliases stay available. The orchestrator chooses per task; do
 not treat the default as the only option.
 
-| Alias | Context | Reasoning | Images | Choose it when |
-| --- | --- | --- | --- | --- |
-| `Qwen3.8-27B-64K-MTP` | 64K | `medium` | yes | Default. Bounded work in one module, a handful of files, clear acceptance criteria. Strongest of the three per token. |
-| `Qwen-daily-64K` | 64K | no | no | The task legitimately spans several files and does not need the model to reason much — mechanical refactors, lint/type fixes, boilerplate, repetitive edits. |
-| `Qwen-daily-262K` | 262K | `medium` | no | Wide repository sweeps, large files, or a long task thread that would otherwise compact. |
+| Alias                 | Context | Reasoning | Images | Choose it when                                                                                                                                               |
+| --------------------- | ------- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Qwen3.8-27B-64K-MTP` | 64K     | `medium`  | yes    | Default. Bounded work in one module, a handful of files, clear acceptance criteria. Strongest of the three per token.                                        |
+| `Qwen-daily-64K`      | 64K     | no        | no     | The task legitimately spans several files and does not need the model to reason much — mechanical refactors, lint/type fixes, boilerplate, repetitive edits. |
+| `Qwen-daily-262K`     | 262K    | `medium`  | no     | Wide repository sweeps, large files, or a long task thread that would otherwise compact.                                                                     |
 
 Rules:
 
 - Start at `Qwen3.8-27B-64K-MTP`. Move to a wider alias when the scope genuinely does
   not fit, not pre-emptively.
 - Running out of context is **not** a reason to escalate to Sonnet; pick the
-  wider alias instead. Escalate to Sonnet when the task is *reasoning*-hard.
+  wider alias instead. Escalate to Sonnet when the task is _reasoning_-hard.
 - A task that needs both deep reasoning and very wide context is a Sonnet task,
   not a Qwen task.
 - Set the model at spawn time (`-- --model <alias>`). Prefer a fresh worker on
@@ -239,6 +241,7 @@ Repository files are the source of truth.
 Do not depend on conversational context as persistent project memory.
 
 Maintain project state using:
+
 - AGENTS.md
 - project documentation
 - task files
@@ -265,17 +268,17 @@ Before modifying code:
 
 1. Confirm the project root and Git repository.
 2. Read, in order when present:
-   - AGENTS.md
-   - README.md
-   - CONTRIBUTING.md
-   - package manifests / dependency files
-   - architecture documentation
+    - AGENTS.md
+    - README.md
+    - CONTRIBUTING.md
+    - package manifests / dependency files
+    - architecture documentation
 3. Inspect:
-   - git status
-   - current branch
-   - recent commits
-   - test/build commands
-   - repository structure
+    - git status
+    - current branch
+    - recent commits
+    - test/build commands
+    - repository structure
 4. Determine the project's language, framework, package manager,
    test runner, formatter, linter, and build system.
 5. Do not change source code until this initial inspection is complete.
@@ -285,6 +288,7 @@ Before modifying code:
 When HERDR_ENV=1 is present, use Herdr's native CLI for coordination.
 
 Use Herdr to:
+
 - inspect existing panes and agents
 - create helper panes
 - start worker agents
@@ -321,6 +325,7 @@ Never let multiple agents blindly modify the same working tree.
 For substantial parallel tasks, prefer Git worktrees.
 
 Each worker should receive:
+
 - its own branch
 - its own worktree
 - a clearly defined task
@@ -335,11 +340,12 @@ agent/qwen-tests-payments
 The orchestrator owns integration into the main development branch.
 
 Workers must never:
+
 - force push
 - rewrite shared history
 - reset other agents' work
 - delete another worker's branch/worktree
-unless explicitly instructed by the orchestrator.
+  unless explicitly instructed by the orchestrator.
 
 ## Worktree Policy
 
@@ -351,6 +357,7 @@ Prefer the Herdr worktree directory configured globally.
 Do not create a worktree for trivial read-only research tasks.
 
 After successful integration:
+
 - remove obsolete worktrees
 - remove merged temporary branches when safe
 
@@ -359,22 +366,29 @@ After successful integration:
 Every delegated task must include:
 
 ### Goal
+
 What must be achieved.
 
 ### Scope
+
 Relevant files/modules/components.
 
 ### Constraints
+
 Interfaces or behavior that must not change.
 
 ### Acceptance Criteria
+
 Concrete conditions defining completion.
 
 ### Validation
+
 Tests, linting, type checks, builds, or manual checks to perform.
 
 ### Output Contract
+
 Worker must report:
+
 - summary
 - files changed
 - tests run
@@ -387,7 +401,7 @@ Avoid vague tasks such as:
 "fix authentication"
 
 Prefer:
-"Fix refresh-token expiration handling in src/auth/*.
+"Fix refresh-token expiration handling in src/auth/\*.
 Do not change the public API.
 Add regression tests reproducing issue X.
 Run auth tests and typecheck."
@@ -395,6 +409,7 @@ Run auth tests and typecheck."
 ## Agent Ownership
 
 The orchestrator is the sole authority for:
+
 - architecture across modules
 - task assignment
 - integration
@@ -414,18 +429,21 @@ orchestrator.
 Default routing:
 
 Luna:
+
 - simple repository exploration
 - summaries
 - repetitive coordination
 - formatting/context preparation
 
 Terra:
+
 - primary orchestration
 - task decomposition
 - integration decisions
 - ordinary review
 
 Sol Medium:
+
 - difficult debugging
 - architectural conflicts
 - ambiguous failures
@@ -433,20 +451,24 @@ Sol Medium:
 - reviewing high-risk changes
 
 Claude Sonnet 5.5 (`claude-sonnet-5-5`):
+
 - architecture-sensitive work
 - complex implementation
 - difficult review/debugging
 - alternative solution generation
 
 Claude Opus 5.5 (`claude-opus-5-5`), escalation only:
+
 - what Sonnet 5.5 could not resolve
 - highly ambiguous architecture, high-risk migrations
 - deep independent review
 
 Claude Fable 5.1 (`claude-fable-5-1`), optional specialist:
+
 - exceptionally large or long-horizon tasks; never a default
 
 Pi / Qwen (`Qwen3.8-27B-64K-MTP` default, `Qwen-daily-64K`, `Qwen-daily-262K`):
+
 - bounded implementation
 - tests
 - repetitive refactors
@@ -478,6 +500,7 @@ finish the current task and start a fresh agent/session for the next task.
 Do not use chat history as the canonical project state.
 
 Canonical state belongs in:
+
 - source code
 - Git
 - AGENTS.md
@@ -492,21 +515,27 @@ Maintain a lightweight project status file when useful:
 Suggested structure:
 
 # Current Goal
+
 ...
 
 # Active Tasks
+
 ...
 
 # Completed
+
 ...
 
 # Decisions
+
 ...
 
 # Known Issues
+
 ...
 
 # Next Actions
+
 ...
 
 Keep this concise.
@@ -520,6 +549,7 @@ For non-trivial projects maintain:
 docs/architecture.md
 
 Record durable architectural decisions such as:
+
 - component boundaries
 - database choices
 - API conventions
@@ -558,17 +588,17 @@ When a worker fails:
 
 1. Read its output.
 2. Identify whether failure came from:
-   - implementation
-   - environment
-   - dependency
-   - misunderstanding
-   - insufficient context
+    - implementation
+    - environment
+    - dependency
+    - misunderstanding
+    - insufficient context
 3. Do not blindly repeat the same prompt.
 4. Modify task/context or assign another worker.
 5. Escalate reasoning complexity only when justified.
 
 For difficult failures:
-coding        Qwen -> Claude Sonnet 5.5 -> Claude Opus 5.5
+coding Qwen -> Claude Sonnet 5.5 -> Claude Opus 5.5
 orchestration Terra Medium -> Sol Medium
 
 Preferred review pairings, cheapest first:
@@ -595,6 +625,7 @@ Prefer a reviewer different from the implementation agent.
 ## Security
 
 Agents must never:
+
 - expose secrets
 - commit .env files containing credentials
 - print API keys unnecessarily
@@ -613,6 +644,7 @@ Do not add a dependency before checking whether the project already
 contains equivalent functionality.
 
 When adding one, consider:
+
 - maintenance
 - license
 - size

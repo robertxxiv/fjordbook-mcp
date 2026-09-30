@@ -3,7 +3,7 @@
 `~/.config/herdr/DEVELOPMENT_TEAM.md` (symlinked here as `TEAM.md`) is the global
 master **template**. It is not automatically loaded by any agent. The rules below
 are the operational subset that must always apply, copied here because this file
-*is* automatically loaded (Codex and Pi read `AGENTS.md`; see
+_is_ automatically loaded (Codex and Pi read `AGENTS.md`; see
 `~/.claude/CLAUDE.md` for the Claude-side copy).
 
 Project-specific instructions further down override the team policy.
@@ -12,15 +12,15 @@ Project-specific instructions further down override the team policy.
 
 ### Roles and verified runtime models
 
-| Role | Runtime identifier | Notes |
-| --- | --- | --- |
-| Orchestrator | `gpt-5.6-sol`, `model_reasoning_effort = "medium"` | default; set in `~/.codex/config.toml` |
-| Orchestration escalation | `gpt-5.6-sol`, effort `high` | hard reasoning only, not routine |
-| Cheap coordination | `gpt-5.6-luna` | summaries, routing, repetitive coordination |
-| Local bounded worker | Pi — `Qwen3.8-27B-64K-MTP` by default, `Qwen-daily-64K` or `Qwen-daily-262K` for wider context (table below) | served by llama.cpp at `http://ai01.home.alpnetsolutions.it:8080/v1` |
-| Default Claude worker | `claude-sonnet-5-5` | complex/multi-file implementation and review |
-| Claude escalation | `claude-opus-5-5` | hardest debugging, architecture, high-risk review |
-| Optional specialist | `claude-fable-5-1` | very large or long-horizon tasks; never a default |
+| Role                     | Runtime identifier                                                                                           | Notes                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Orchestrator             | `gpt-5.6-sol`, `model_reasoning_effort = "medium"`                                                           | default; set in `~/.codex/config.toml`                               |
+| Orchestration escalation | `gpt-5.6-sol`, effort `high`                                                                                 | hard reasoning only, not routine                                     |
+| Cheap coordination       | `gpt-5.6-luna`                                                                                               | summaries, routing, repetitive coordination                          |
+| Local bounded worker     | Pi — `Qwen3.8-27B-64K-MTP` by default, `Qwen-daily-64K` or `Qwen-daily-262K` for wider context (table below) | served by llama.cpp at `http://ai01.home.alpnetsolutions.it:8080/v1` |
+| Default Claude worker    | `claude-sonnet-5-5`                                                                                          | complex/multi-file implementation and review                         |
+| Claude escalation        | `claude-opus-5-5`                                                                                            | hardest debugging, architecture, high-risk review                    |
+| Optional specialist      | `claude-fable-5-1`                                                                                           | very large or long-horizon tasks; never a default                    |
 
 `claude-haiku-5-5` is **not** available in this installation — do not configure it
 as a worker. Do not assume Mythos exists.
@@ -30,15 +30,15 @@ as a worker. Do not assume Mythos exists.
 All three aliases stay available; choose per task rather than always taking the
 default.
 
-| Alias | Context | Reasoning | Choose it when |
-| --- | --- | --- | --- |
-| `Qwen3.8-27B-64K-MTP` | 64K | `medium` | Default. Bounded work in one module, a few files, clear acceptance criteria. Also accepts images. |
-| `Qwen-daily-64K` | 64K | no | Spans several files but needs little reasoning: mechanical refactors, lint/type fixes, boilerplate, repetitive edits. |
-| `Qwen-daily-262K` | 262K | `medium` | Wide repository sweeps, large files, or a long thread that would otherwise compact. |
+| Alias                 | Context | Reasoning | Choose it when                                                                                                        |
+| --------------------- | ------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `Qwen3.8-27B-64K-MTP` | 64K     | `medium`  | Default. Bounded work in one module, a few files, clear acceptance criteria. Also accepts images.                     |
+| `Qwen-daily-64K`      | 64K     | no        | Spans several files but needs little reasoning: mechanical refactors, lint/type fixes, boilerplate, repetitive edits. |
+| `Qwen-daily-262K`     | 262K    | `medium`  | Wide repository sweeps, large files, or a long thread that would otherwise compact.                                   |
 
 Start at `Qwen3.8-27B-64K-MTP` and widen only when the scope genuinely does not fit.
 Running out of context is not a reason to escalate to Sonnet — pick the wider
-alias. Escalate to Sonnet when the task is *reasoning*-hard; a task needing both
+alias. Escalate to Sonnet when the task is _reasoning_-hard; a task needing both
 deep reasoning and very wide context is a Sonnet task.
 
 Escalation is stepwise, never a jump:
