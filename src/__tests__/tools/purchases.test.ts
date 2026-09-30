@@ -31,7 +31,7 @@ describe("fiken_list_purchases", () => {
     it("calls GET /purchases with filters", async () => {
         const data = [{ purchaseId: 1 }];
         mockGet.mockResolvedValue(data);
-        const params = { page: 0, pageSize: 25, paid: false, supplierId: 10 };
+        const params = { page: 0, pageSize: 25, paid: false, contactId: 10, sortBy: "date desc" };
         const result = await server.getHandler("fiken_list_purchases")(params);
         expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/purchases", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
@@ -163,7 +163,12 @@ describe("fiken_add_purchase_attachment", () => {
         expect(mockUploadMultipart).toHaveBeenCalledOnce();
         const [path, params, form] = mockUploadMultipart.mock.calls[0];
         expect(path).toBe("/companies/test-slug/purchases/1/attachments");
-        expect(params).toEqual({ attachToPayment: false, attachToSale: true });
+        expect(params).toEqual({
+            attachToPayment: false,
+            attachToSale: true,
+            ehfDocumentId: undefined,
+            inboxDocumentId: undefined,
+        });
         expect(form.get("filename")).toBe("receipt.pdf");
         expect((form.get("file") as Blob).size).toBe(3);
         expect(result.content[0].text).toContain("created");
@@ -186,7 +191,12 @@ describe("fiken_add_purchase_attachment", () => {
             });
 
             const [, params, form] = mockUploadMultipart.mock.calls[0];
-            expect(params).toEqual({ attachToPayment: true, attachToSale: undefined });
+            expect(params).toEqual({
+                attachToPayment: true,
+                attachToSale: undefined,
+                ehfDocumentId: undefined,
+                inboxDocumentId: undefined,
+            });
             expect(form.get("filename")).toBe("invoice.pdf");
             expect((form.get("file") as Blob).size).toBe(3);
             expect(result.isError).toBeUndefined();
@@ -202,7 +212,7 @@ describe("fiken_add_purchase_attachment", () => {
             attachToSale: true,
         });
         expect(missing.isError).toBe(true);
-        expect(missing.content[0].text).toContain("Either filePath or fileBase64 is required");
+        expect(missing.content[0].text).toContain("Provide exactly one of");
 
         const duplicate = await server.getHandler("fiken_add_purchase_attachment")({
             purchaseId: 1,
@@ -212,7 +222,7 @@ describe("fiken_add_purchase_attachment", () => {
             attachToSale: true,
         });
         expect(duplicate.isError).toBe(true);
-        expect(duplicate.content[0].text).toContain("Provide only one of filePath or fileBase64");
+        expect(duplicate.content[0].text).toContain("Provide exactly one of");
     });
 
     it("rejects unsupported filenames", async () => {
@@ -404,5 +414,347 @@ describe("fiken_create_purchase_from_draft", () => {
             draftId: 999,
         });
         expect(result.isError).toBe(true);
+    });
+});
+
+describe("fiken_get_purchase_payments", () => {
+    it("calls GET /purchases/{purchaseId}/payments", async () => {
+        const data = [{ paymentId: 5 }];
+        mockGet.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_get_purchase_payments")({ purchaseId: 1 });
+        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/purchases/1/payments");
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_get_purchase_payments")({ purchaseId: 1 });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockGet.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_get_purchase_payments")({ purchaseId: 1 });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_create_purchase_payment", () => {
+    const body = {
+        date: "2024-03-01",
+        account: "1920:10001",
+        amount: 12500,
+        currency: "EUR",
+        amountInNok: 140000,
+        fee: 500,
+    };
+
+    it("calls POST /purchases/{purchaseId}/payments with body (purchaseId excluded)", async () => {
+        const data = { created: true, location: "/x/5" };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_create_purchase_payment")({
+            purchaseId: 1,
+            ...body,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "POST",
+            "/companies/test-slug/purchases/1/payments",
+            body,
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_create_purchase_payment")({
+            purchaseId: 1,
+            ...body,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_create_purchase_payment")({
+            purchaseId: 1,
+            ...body,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_get_purchase_payment", () => {
+    it("calls GET /purchases/{purchaseId}/payments/{paymentId}", async () => {
+        const data = { paymentId: 5 };
+        mockGet.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_get_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+        });
+        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/purchases/1/payments/5");
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_get_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockGet.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_get_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_delete_purchase_payment", () => {
+    it("calls DELETE /purchases/{purchaseId}/payments/{paymentId}", async () => {
+        const data = { success: true };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_delete_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "DELETE",
+            "/companies/test-slug/purchases/1/payments/5",
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_delete_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_delete_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_delete_purchase_payment (description)", () => {
+    it("passes the encoded description as query param", async () => {
+        mockMutate.mockResolvedValue({ success: true });
+        await server.getHandler("fiken_delete_purchase_payment")({
+            purchaseId: 1,
+            paymentId: 5,
+            description: "wrong amount & date",
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "DELETE",
+            "/companies/test-slug/purchases/1/payments/5?description=wrong%20amount%20%26%20date",
+        );
+    });
+});
+
+describe("fiken_get_purchase_accruals", () => {
+    it("calls GET /purchases/{purchaseId}/accruals", async () => {
+        const data = [{ accrualId: 7 }];
+        mockGet.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_get_purchase_accruals")({ purchaseId: 1 });
+        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/purchases/1/accruals");
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_get_purchase_accruals")({ purchaseId: 1 });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockGet.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_get_purchase_accruals")({ purchaseId: 1 });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_create_purchase_accrual", () => {
+    const body = { lineId: 99, startDate: "2024-04-01", periods: 12, account: "1749" };
+
+    it("calls POST /purchases/{purchaseId}/accruals with body (purchaseId excluded)", async () => {
+        const data = { created: true, location: "/x/7" };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_create_purchase_accrual")({
+            purchaseId: 1,
+            ...body,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "POST",
+            "/companies/test-slug/purchases/1/accruals",
+            body,
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_create_purchase_accrual")({
+            purchaseId: 1,
+            ...body,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_create_purchase_accrual")({
+            purchaseId: 1,
+            ...body,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_get_purchase_accrual", () => {
+    it("calls GET /purchases/{purchaseId}/accruals/{accrualId}", async () => {
+        const data = { accrualId: 7 };
+        mockGet.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_get_purchase_accrual")({
+            purchaseId: 1,
+            accrualId: 7,
+        });
+        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/purchases/1/accruals/7");
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_get_purchase_accrual")({
+            purchaseId: 1,
+            accrualId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockGet.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_get_purchase_accrual")({
+            purchaseId: 1,
+            accrualId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_delete_purchase_accrual", () => {
+    it("calls DELETE /purchases/{purchaseId}/accruals/{accrualId}", async () => {
+        const data = { success: true };
+        mockMutate.mockResolvedValue(data);
+        const result = await server.getHandler("fiken_delete_purchase_accrual")({
+            purchaseId: 1,
+            accrualId: 7,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "DELETE",
+            "/companies/test-slug/purchases/1/accruals/7",
+        );
+        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_delete_purchase_accrual")({
+            purchaseId: 1,
+            accrualId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue(42);
+        const result = await server.getHandler("fiken_delete_purchase_accrual")({
+            purchaseId: 1,
+            accrualId: 7,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: 42");
+    });
+});
+
+describe("fiken_add_purchase_attachment (document ids)", () => {
+    it("attaches an existing EHF document without uploading a file", async () => {
+        mockUploadMultipart.mockResolvedValue({ created: true, location: "/x/2" });
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            ehfDocumentId: 55,
+            attachToSale: true,
+        });
+        const [path, params, form] = mockUploadMultipart.mock.calls[0];
+        expect(path).toBe("/companies/test-slug/purchases/1/attachments");
+        expect(params).toEqual({
+            attachToPayment: undefined,
+            attachToSale: true,
+            ehfDocumentId: 55,
+            inboxDocumentId: undefined,
+        });
+        expect(form.has("file")).toBe(false);
+        expect(result.isError).toBeUndefined();
+    });
+
+    it("attaches an existing inbox document without uploading a file", async () => {
+        mockUploadMultipart.mockResolvedValue({ created: true, location: "/x/2" });
+        await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            inboxDocumentId: 66,
+            attachToPayment: true,
+        });
+        const [, params] = mockUploadMultipart.mock.calls[0];
+        expect(params).toMatchObject({ inboxDocumentId: 66, attachToPayment: true });
+    });
+
+    it("rejects combining a file with a document id", async () => {
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            filename: "a.pdf",
+            fileBase64: "AA==",
+            ehfDocumentId: 55,
+            attachToSale: true,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain("Provide exactly one of");
+    });
+});
+
+describe("fiken_add_purchase_attachment (filename validation)", () => {
+    it("requires filename when using fileBase64", async () => {
+        const result = await server.getHandler("fiken_add_purchase_attachment")({
+            purchaseId: 1,
+            fileBase64: "AA==",
+            attachToSale: true,
+        });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toContain("filename is required when using fileBase64");
     });
 });
