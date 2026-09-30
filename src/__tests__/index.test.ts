@@ -1,4 +1,7 @@
+import { createRequire } from "node:module";
 import { vi, describe, it, expect, beforeAll } from "vitest";
+
+const { version } = createRequire(import.meta.url)("../../package.json") as { version: string };
 
 const mockConnect = vi.fn().mockResolvedValue(undefined);
 const mockRegisterTool = vi.fn();
@@ -42,7 +45,7 @@ describe("index", () => {
     });
 
     it("creates McpServer with name and version", () => {
-        expect(MockMcpServer).toHaveBeenCalledWith({ name: "fiken-mcp", version: "1.0.0" });
+        expect(MockMcpServer).toHaveBeenCalledWith({ name: "fiken-mcp", version });
     });
 
     it("creates StdioServerTransport", () => {
