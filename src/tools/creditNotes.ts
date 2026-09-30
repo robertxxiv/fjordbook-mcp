@@ -2,56 +2,40 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, mutate, cp } from "../client.js";
 import { R, W, D, ok, err } from "./shared.js";
+import { draftSchema, sendSchema } from "./orderConfirmations.js";
 
 const creditNoteLine = z.object({
-    incomeAccount: z.string().optional(),
-    vatType: z.string().optional(),
-    unitPrice: z.number().int(),
-    quantity: z.number(),
-    discount: z.number().optional(),
-    productId: z.number().int().optional(),
-    description: z.string().optional(),
-    comment: z.string().optional(),
+    incomeAccount: z
+        .string()
+        .optional()
+        .describe("Income account, e.g. 3000. Defaults to the product's income account"),
+    vatType: z
+        .string()
+        .optional()
+        .describe(
+            "VAT type for sales, e.g. NONE, HIGH, MEDIUM, RAW_FISH, LOW, EXEMPT, EXEMPT_IMPORT_EXPORT, EXEMPT_REVERSE",
+        ),
+    unitPrice: z.number().int().describe("Net price per unit in document currency, in cents (øre)"),
+    quantity: z.number().describe("Number of units"),
+    discount: z.number().optional().describe("Percentage discount on the line"),
+    productId: z.number().int().optional().describe("ID of the product on this line"),
+    description: z.string().optional().describe("Description of the product or service"),
+    comment: z.string().optional().describe("Additional information printed on the document"),
 });
 
 const roundingType = z
     .enum(["none", "round_half", "round_whole", "round_down_half", "round_down_whole"])
-    .optional();
+    .optional()
+    .describe(
+        "Øre rounding applied to the total. Allowed values: none, round_half, round_whole, round_down_half, round_down_whole",
+    );
 
-const draftSchema = z.object({
-    type: z.enum(["invoice", "cash_invoice", "offer", "order_confirmation", "credit_note"]),
-    uuid: z.string().optional(),
-    issueDate: z.string().optional().describe("YYYY-MM-DD"),
-    daysUntilDueDate: z.number().int(),
-    invoiceText: z.string().optional(),
-    yourReference: z.string().optional(),
-    ourReference: z.string().optional(),
-    orderReference: z.string().optional(),
-    lines: z
-        .array(
-            z.object({
-                invoiceishDraftLineId: z.number().int().optional(),
-                description: z.string().optional(),
-                unitPrice: z.number().int().optional(),
-                vatType: z.string().optional(),
-                quantity: z.number(),
-                discount: z.number().optional(),
-                productId: z.number().int().optional(),
-                comment: z.string().optional(),
-                incomeAccount: z.string().optional(),
-            }),
-        )
-        .optional(),
-    currency: z.string().optional(),
-    bankAccountNumber: z.string().optional(),
-    iban: z.string().optional(),
-    bic: z.string().optional(),
-    paymentAccount: z.string().optional(),
-    customerId: z.number().int().describe("Customer contact ID"),
-    contactPersonId: z.number().int().optional(),
-    projectId: z.number().int().optional(),
-    roundingType,
-});
+const pagination = {
+    page: z.number().int().optional().describe("Page number, starting at 0"),
+    pageSize: z.number().int().optional().describe("Results per page (max 100)"),
+};
+
+const draftId = z.number().int().describe("Draft ID");
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -60,17 +44,38 @@ export function register(server: McpServer) {
             ...R,
             description: "Returns all credit notes for the company",
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-                issueDate: z.string().optional(),
-                issueDateLe: z.string().optional(),
-                issueDateLt: z.string().optional(),
-                issueDateGe: z.string().optional(),
-                issueDateGt: z.string().optional(),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
-                customerId: z.number().int().optional(),
-                settled: z.boolean().optional(),
+                ...pagination,
+                issueDate: z.string().optional().describe("Exact issue date, format yyyy-mm-dd"),
+                issueDateLe: z.string().optional().describe("Issue date <=, format yyyy-mm-dd"),
+                issueDateLt: z.string().optional().describe("Issue date <, format yyyy-mm-dd"),
+                issueDateGe: z.string().optional().describe("Issue date >=, format yyyy-mm-dd"),
+                issueDateGt: z.string().optional().describe("Issue date >, format yyyy-mm-dd"),
+                lastModified: z
+                    .string()
+                    .optional()
+                    .describe("Exact last-modified date, format yyyy-mm-dd"),
+                lastModifiedLe: z
+                    .string()
+                    .optional()
+                    .describe("Last modified <=, format yyyy-mm-dd"),
+                lastModifiedLt: z
+                    .string()
+                    .optional()
+                    .describe("Last modified <, format yyyy-mm-dd"),
+                lastModifiedGe: z
+                    .string()
+                    .optional()
+                    .describe("Last modified >=, format yyyy-mm-dd"),
+                lastModifiedGt: z
+                    .string()
+                    .optional()
+                    .describe("Last modified >, format yyyy-mm-dd"),
+                customerId: z.number().int().optional().describe("Filter by customer ID"),
+                settled: z.boolean().optional().describe("Filter by settled status"),
+                creditNoteDraftUuid: z
+                    .string()
+                    .optional()
+                    .describe("UUID of the draft the credit note was created from"),
             }),
         },
         async (p) => {
@@ -87,7 +92,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific credit note by ID",
-            inputSchema: z.object({ creditNoteId: z.number().int() }),
+            inputSchema: z.object({ creditNoteId: z.string().describe("Credit note ID") }),
         },
         async ({ creditNoteId }) => {
             try {
@@ -154,16 +159,8 @@ export function register(server: McpServer) {
             ...W,
             description: "Sends a credit note via email and/or EHF",
             inputSchema: z.object({
-                creditNoteId: z.number().int(),
-                method: z.array(z.enum(["email", "ehf", "efaktura", "sms", "letter", "auto"])),
-                includeDocumentAttachments: z.boolean(),
-                recipientName: z.string().optional(),
-                recipientEmail: z.string().optional(),
-                message: z.string().optional(),
-                emailSendOption: z.enum(["document_link", "attachment", "auto"]).optional(),
-                mergeInvoiceAndAttachments: z.boolean().optional(),
-                organizationNumber: z.string().optional(),
-                mobileNumber: z.string().optional(),
+                creditNoteId: z.number().int().describe("ID of the credit note to send"),
+                ...sendSchema.shape,
             }),
         },
         async (body) => {
@@ -197,7 +194,7 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates the first credit note number counter",
             inputSchema: z.object({
-                value: z.number().int().optional(),
+                value: z.number().int().optional().describe("Current value of the counter"),
             }),
         },
         async (body) => {
@@ -214,10 +211,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns all credit note drafts for the company",
-            inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-            }),
+            inputSchema: z.object(pagination),
         },
         async (p) => {
             try {
@@ -249,7 +243,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific credit note draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -265,7 +259,7 @@ export function register(server: McpServer) {
         {
             ...W,
             description: "Updates a credit note draft",
-            inputSchema: z.object({ draftId: z.number().int(), ...draftSchema.shape }),
+            inputSchema: z.object({ draftId, ...draftSchema.shape }),
         },
         async ({ draftId, ...body }) => {
             try {
@@ -281,7 +275,7 @@ export function register(server: McpServer) {
         {
             ...D,
             description: "Deletes a credit note draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -297,7 +291,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns all attachments for a credit note draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
@@ -313,7 +307,7 @@ export function register(server: McpServer) {
         {
             ...W,
             description: "Creates a finalized credit note from a draft",
-            inputSchema: z.object({ draftId: z.number().int() }),
+            inputSchema: z.object({ draftId }),
         },
         async ({ draftId }) => {
             try {
