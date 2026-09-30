@@ -1,9 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp, slug } from "../client.js";
+import { get, mutate, cp } from "../client.js";
 import { R, D, ok, err } from "./shared.js";
-
-const W = { annotations: { readOnlyHint: false, destructiveHint: true } } as const;
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -12,15 +10,42 @@ export function register(server: McpServer) {
             ...R,
             description: "Returns all transactions for the company",
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-                createdDate: z.string().optional().describe("YYYY-MM-DD"),
-                createdDateLe: z.string().optional(),
-                createdDateLt: z.string().optional(),
-                createdDateGe: z.string().optional(),
-                createdDateGt: z.string().optional(),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
+                page: z.number().int().optional().describe("Page number, 0-indexed"),
+                pageSize: z.number().int().optional().describe("Results per page, max 100"),
+                lastModified: z.string().optional().describe("Last modified on, format YYYY-MM-DD"),
+                lastModifiedLe: z
+                    .string()
+                    .optional()
+                    .describe("Last modified on or before, format YYYY-MM-DD"),
+                lastModifiedLt: z
+                    .string()
+                    .optional()
+                    .describe("Last modified strictly before, format YYYY-MM-DD"),
+                lastModifiedGe: z
+                    .string()
+                    .optional()
+                    .describe("Last modified on or after, format YYYY-MM-DD"),
+                lastModifiedGt: z
+                    .string()
+                    .optional()
+                    .describe("Last modified strictly after, format YYYY-MM-DD"),
+                createdDate: z.string().optional().describe("Created on, format YYYY-MM-DD"),
+                createdDateLe: z
+                    .string()
+                    .optional()
+                    .describe("Created on or before, format YYYY-MM-DD"),
+                createdDateLt: z
+                    .string()
+                    .optional()
+                    .describe("Created strictly before, format YYYY-MM-DD"),
+                createdDateGe: z
+                    .string()
+                    .optional()
+                    .describe("Created on or after, format YYYY-MM-DD"),
+                createdDateGt: z
+                    .string()
+                    .optional()
+                    .describe("Created strictly after, format YYYY-MM-DD"),
             }),
         },
         async (p) => {
@@ -51,7 +76,7 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_delete_transaction",
         {
-            ...W,
+            ...D,
             description: "Marks a transaction as deleted and creates a reversing transaction",
             inputSchema: z.object({
                 transactionId: z.number().int(),
@@ -59,7 +84,7 @@ export function register(server: McpServer) {
             }),
         },
         async ({ transactionId, description }) => {
-            const path = `/companies/${slug()}/transactions/${transactionId}/delete?description=${encodeURIComponent(description)}`;
+            const path = `${cp(`/transactions/${transactionId}/delete`)}?description=${encodeURIComponent(description)}`;
             try {
                 return ok(await mutate("PATCH", path));
             } catch (e) {

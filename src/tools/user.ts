@@ -28,7 +28,17 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: z.number().int().optional().describe("Page number, 0-indexed"),
                 pageSize: z.number().int().optional().describe("Results per page, max 100"),
-                sortBy: z.string().optional().describe('e.g. "name asc", "createdDate desc"'),
+                sortBy: z
+                    .enum([
+                        "createdDate asc",
+                        "createdDate desc",
+                        "name asc",
+                        "name desc",
+                        "organizationNumber asc",
+                        "organizationNumber desc",
+                    ])
+                    .optional()
+                    .describe("Sort order (default name asc)"),
             }),
         },
         async (p) => {

@@ -9,24 +9,63 @@ const addressSchema = z
         streetAddressLine2: z.string().optional(),
         city: z.string().optional(),
         postCode: z.string().optional(),
-        country: z.string().optional().describe('ISO 3166 country code, e.g. "NO"'),
+        country: z.string().describe('Country, e.g. "Norway" (required when address is given)'),
     })
     .optional();
+
+const contactPersonFields = {
+    name: z.string().describe("Name of the contact person (required)"),
+    email: z.string().describe("Email of the contact person (required)"),
+    phoneNumber: z.string().optional(),
+    address: addressSchema,
+};
 
 const contactSchema = z.object({
     name: z.string().describe("Contact name (required)"),
     email: z.string().optional(),
-    organizationNumber: z.string().optional(),
+    organizationNumber: z.string().optional().describe("Brreg organization number"),
+    customerNumber: z.number().int().optional(),
+    customerAccountCode: z
+        .string()
+        .optional()
+        .describe('Customer account code, format "1500:XXXXX"'),
+    supplierNumber: z.number().int().optional(),
+    supplierAccountCode: z
+        .string()
+        .optional()
+        .describe('Supplier account code, format "2400:XXXXX"'),
     customer: z.boolean().optional().describe("True if this contact is a customer"),
     supplier: z.boolean().optional().describe("True if this contact is a supplier"),
     bankAccountNumber: z.string().optional(),
     phoneNumber: z.string().optional(),
-    memberNumber: z.number().int().optional(),
+    memberNumber: z.number().optional().describe("Number connecting the contact to your own data"),
+    memberNumberString: z
+        .string()
+        .optional()
+        .describe("String id connecting the contact to your own data"),
     address: addressSchema,
+    contactPerson: z
+        .array(z.object(contactPersonFields))
+        .optional()
+        .describe("Contact persons (each requires name and email)"),
+    notes: z
+        .array(z.object({ author: z.string().optional(), note: z.string().optional() }))
+        .optional(),
     groups: z.array(z.string()).optional().describe("Customer group names"),
     currency: z.string().optional().describe('ISO 4217 currency code, e.g. "NOK"'),
-    language: z.string().optional().describe('Language code, e.g. "norwegian"'),
+    language: z
+        .string()
+        .optional()
+        .describe(
+            'Language for documents sent to this contact: "NORWEGIAN" (default) or "ENGLISH"',
+        ),
     inactive: z.boolean().optional(),
+    daysUntilInvoicingDueDate: z
+        .number()
+        .int()
+        .optional()
+        .describe("Default number of days until invoice due date"),
+    discount: z.number().optional().describe("Discount percent between 0 and 100"),
 });
 
 export function register(server: McpServer) {
@@ -38,17 +77,29 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: z.number().int().optional(),
                 pageSize: z.number().int().optional(),
-                sortBy: z.string().optional().describe('e.g. "name asc"'),
+                sortBy: z
+                    .enum([
+                        "lastModified asc",
+                        "lastModified desc",
+                        "createdDate asc",
+                        "createdDate desc",
+                    ])
+                    .optional(),
                 supplierNumber: z.number().int().optional(),
                 customerNumber: z.number().int().optional(),
                 memberNumber: z.number().int().optional(),
-                name: z.string().optional(),
+                memberNumberString: z.string().optional(),
+                name: z.string().optional().describe("Exact name match"),
                 organizationNumber: z.string().optional(),
                 email: z.string().optional(),
-                customer: z.boolean().optional(),
-                supplier: z.boolean().optional(),
-                inactive: z.boolean().optional(),
-                group: z.string().optional(),
+                phoneNumber: z.string().optional(),
+                customer: z.boolean().optional().describe("Only customers"),
+                supplier: z.boolean().optional().describe("Only suppliers"),
+                inactive: z
+                    .boolean()
+                    .optional()
+                    .describe("false = active contacts, true = inactive"),
+                group: z.string().optional().describe("Exact customer group match"),
                 lastModified: z.string().optional().describe("YYYY-MM-DD"),
                 lastModifiedLe: z.string().optional(),
                 lastModifiedLt: z.string().optional(),
@@ -108,21 +159,11 @@ export function register(server: McpServer) {
         "fiken_update_contact",
         {
             ...W,
-            description: "Updates an existing contact",
+            description:
+                "Replaces an existing contact (PUT: all fields are overwritten, so name is required and omitted optional fields are cleared)",
             inputSchema: z.object({
                 contactId: z.number().int(),
-                name: z.string().optional(),
-                email: z.string().optional(),
-                organizationNumber: z.string().optional(),
-                customer: z.boolean().optional(),
-                supplier: z.boolean().optional(),
-                bankAccountNumber: z.string().optional(),
-                phoneNumber: z.string().optional(),
-                address: addressSchema,
-                groups: z.array(z.string()).optional(),
-                currency: z.string().optional(),
-                language: z.string().optional(),
-                inactive: z.boolean().optional(),
+                ...contactSchema.shape,
             }),
         },
         async ({ contactId, ...body }) => {
@@ -177,10 +218,7 @@ export function register(server: McpServer) {
             description: "Adds a contact person to a contact",
             inputSchema: z.object({
                 contactId: z.number().int(),
-                name: z.string().optional(),
-                email: z.string().optional(),
-                phoneNumber: z.string().optional(),
-                address: addressSchema,
+                ...contactPersonFields,
             }),
         },
         async ({ contactId, ...body }) => {
@@ -215,14 +253,11 @@ export function register(server: McpServer) {
         "fiken_update_contact_person",
         {
             ...W,
-            description: "Updates a contact person",
+            description: "Replaces a contact person (PUT: name and email are required)",
             inputSchema: z.object({
                 contactId: z.number().int(),
                 contactPersonId: z.number().int(),
-                name: z.string().optional(),
-                email: z.string().optional(),
-                phoneNumber: z.string().optional(),
-                address: addressSchema,
+                ...contactPersonFields,
             }),
         },
         async ({ contactId, contactPersonId, ...body }) => {

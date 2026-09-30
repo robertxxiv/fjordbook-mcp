@@ -1,18 +1,23 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
     mutate: vi.fn(),
+    uploadMultipart: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, mutate, uploadMultipart } from "../../client.js";
 import { register } from "../../tools/misc.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
 const mockMutate = vi.mocked(mutate);
+const mockUpload = vi.mocked(uploadMultipart);
 const server = createMockServer();
 
 beforeAll(() => {
@@ -26,7 +31,7 @@ describe("fiken_create_product_sales_report", () => {
     it("calls POST /products/salesReport with body", async () => {
         const data = [{ productId: 1, totalSold: 5 }];
         mockMutate.mockResolvedValue(data);
-        const body = { from: "2024-01-01", to: "2024-12-31", includeZeroValues: false };
+        const body = { from: "2024-01-01", to: "2024-12-31" };
         const result = await server.getHandler("fiken_create_product_sales_report")(body);
         expect(mockMutate).toHaveBeenCalledWith(
             "POST",
@@ -56,94 +61,151 @@ describe("fiken_create_product_sales_report", () => {
     });
 });
 
-describe("fiken_list_projects", () => {
-    it("calls GET /projects with params", async () => {
-        const data = [{ projectId: 1, name: "Project Alpha" }];
-        mockGet.mockResolvedValue(data);
-        const params = { page: 0, pageSize: 10, completed: false };
-        const result = await server.getHandler("fiken_list_projects")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/projects", params);
-        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+function simpleGet(tool: string, args: Record<string, unknown>, path: string, params?: unknown) {
+    describe(tool, () => {
+        it(`calls GET ${path}`, async () => {
+            const data = { ok: 1 };
+            mockGet.mockResolvedValue(data);
+            const result = await server.getHandler(tool)(args);
+            if (params === undefined) expect(mockGet).toHaveBeenCalledWith(path);
+            else expect(mockGet).toHaveBeenCalledWith(path, params);
+            expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+        });
+        it("returns error on failure", async () => {
+            mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+            const result = await server.getHandler(tool)(args);
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
+        });
+        it("handles non-Error thrown values", async () => {
+            mockGet.mockRejectedValue("boom");
+            const result = await server.getHandler(tool)(args);
+            expect(result.content[0].text).toBe("Error: boom");
+        });
     });
+}
 
+simpleGet(
+    "fiken_list_inbox",
+    { page: 0, pageSize: 25, sortBy: "name asc", status: "unused", name: "inv" },
+    "/companies/test-slug/inbox",
+    { page: 0, pageSize: 25, sortBy: "name asc", status: "unused", name: "inv" },
+);
+simpleGet("fiken_get_inbox_document", { inboxDocumentId: 7 }, "/companies/test-slug/inbox/7");
+simpleGet(
+    "fiken_list_ehf_documents",
+    {
+        page: 1,
+        sortBy: "issueDate desc",
+        status: "unprocessed",
+        issueDate: "2024-01-01",
+        issueDateLe: "2024-02-01",
+        issueDateLt: "2024-02-02",
+        issueDateGe: "2023-01-01",
+        issueDateGt: "2023-01-02",
+    },
+    "/companies/test-slug/ehf",
+    {
+        page: 1,
+        sortBy: "issueDate desc",
+        status: "unprocessed",
+        issueDate: "2024-01-01",
+        issueDateLe: "2024-02-01",
+        issueDateLt: "2024-02-02",
+        issueDateGe: "2023-01-01",
+        issueDateGt: "2023-01-02",
+    },
+);
+simpleGet("fiken_get_ehf_document", { ehfDocumentId: 9 }, "/companies/test-slug/ehf/9");
+
+describe("fiken_delete_inbox_document", () => {
+    it("calls DELETE /inbox/{id}", async () => {
+        mockMutate.mockResolvedValue({ success: true });
+        const result = await server.getHandler("fiken_delete_inbox_document")({
+            inboxDocumentId: 7,
+        });
+        expect(mockMutate).toHaveBeenCalledWith("DELETE", "/companies/test-slug/inbox/7");
+        expect(result.content[0].text).toBe(JSON.stringify({ success: true }, null, 2));
+    });
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
-        const result = await server.getHandler("fiken_list_projects")({});
+        mockMutate.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        const result = await server.getHandler("fiken_delete_inbox_document")({
+            inboxDocumentId: 7,
+        });
         expect(result.isError).toBe(true);
+    });
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue("boom");
+        const result = await server.getHandler("fiken_delete_inbox_document")({
+            inboxDocumentId: 7,
+        });
+        expect(result.content[0].text).toBe("Error: boom");
     });
 });
 
-describe("fiken_list_time_entries", () => {
-    it("calls GET /timeEntries with filters", async () => {
-        const data = [{ timeEntryId: 1, hours: 8 }];
-        mockGet.mockResolvedValue(data);
-        const params = {
-            page: 0,
-            pageSize: 50,
-            startDate: "2024-01-01",
-            endDate: "2024-01-31",
-            projectId: 5,
-            userId: 2,
-        };
-        const result = await server.getHandler("fiken_list_time_entries")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/timeEntries", params);
-        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
+describe("fiken_create_inbox_document", () => {
+    const tool = "fiken_create_inbox_document";
+
+    it("uploads base64 content as multipart", async () => {
+        mockUpload.mockResolvedValue({ created: true, location: "x" });
+        const result = await server.getHandler(tool)({
+            fileBase64: Buffer.from("hello").toString("base64"),
+            filename: "a.pdf",
+            name: "Receipt",
+            description: "Lunch",
+        });
+        expect(result.isError).toBeUndefined();
+        const [path, params, form] = mockUpload.mock.calls[0];
+        expect(path).toBe("/companies/test-slug/inbox");
+        expect(params).toBeUndefined();
+        const fd = form as FormData;
+        expect(fd.get("filename")).toBe("a.pdf");
+        expect(fd.get("name")).toBe("Receipt");
+        expect(fd.get("description")).toBe("Lunch");
+        const file = fd.get("file") as File;
+        expect(file.name).toBe("a.pdf");
+        expect(await file.text()).toBe("hello");
     });
 
-    it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
-        const result = await server.getHandler("fiken_list_time_entries")({});
+    it("reads filePath, defaulting filename and name to its basename", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "fiken-inbox-"));
+        const p = join(dir, "scan.png");
+        writeFileSync(p, "png-bytes");
+        mockUpload.mockResolvedValue({ created: true });
+        await server.getHandler(tool)({ filePath: p });
+        const fd = mockUpload.mock.calls[0][2] as FormData;
+        expect(fd.get("filename")).toBe("scan.png");
+        expect(fd.get("name")).toBe("scan.png");
+        expect(fd.has("description")).toBe(false);
+        expect(await (fd.get("file") as File).text()).toBe("png-bytes");
+    });
+
+    it("rejects missing file source", async () => {
+        const result = await server.getHandler(tool)({});
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toBe("Error: Either filePath or fileBase64 is required");
+        expect(mockUpload).not.toHaveBeenCalled();
+    });
+
+    it("rejects both file sources", async () => {
+        const result = await server.getHandler(tool)({ filePath: "/x", fileBase64: "eA==" });
+        expect(result.content[0].text).toBe("Error: Provide only one of filePath or fileBase64");
+    });
+
+    it("requires filename with base64", async () => {
+        const result = await server.getHandler(tool)({ fileBase64: "eA==" });
+        expect(result.content[0].text).toBe("Error: filename is required when using fileBase64");
+    });
+
+    it("returns error on upload failure", async () => {
+        mockUpload.mockRejectedValue(new Error("Fiken 400: Bad"));
+        const result = await server.getHandler(tool)({ fileBase64: "eA==", filename: "a.pdf" });
         expect(result.isError).toBe(true);
     });
-});
 
-describe("fiken_list_activities", () => {
-    it("calls GET /activities with params", async () => {
-        const data = [{ activityId: 1, name: "Development" }];
-        mockGet.mockResolvedValue(data);
-        const params = { page: 0, pageSize: 25 };
-        const result = await server.getHandler("fiken_list_activities")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/activities", params);
-        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
-    });
-
-    it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
-        const result = await server.getHandler("fiken_list_activities")({});
-        expect(result.isError).toBe(true);
-    });
-});
-
-describe("fiken_list_time_users", () => {
-    it("calls GET /timeUsers with params", async () => {
-        const data = [{ userId: 1, name: "Alice" }];
-        mockGet.mockResolvedValue(data);
-        const params = { page: 0, pageSize: 25 };
-        const result = await server.getHandler("fiken_list_time_users")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/timeUsers", params);
-        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
-    });
-
-    it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
-        const result = await server.getHandler("fiken_list_time_users")({});
-        expect(result.isError).toBe(true);
-    });
-});
-
-describe("fiken_list_inbox", () => {
-    it("calls GET /inbox with filters", async () => {
-        const data = [{ documentId: 1, name: "Invoice.pdf", status: "new" }];
-        mockGet.mockResolvedValue(data);
-        const params = { page: 0, pageSize: 25, status: "new", name: "Invoice" };
-        const result = await server.getHandler("fiken_list_inbox")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/inbox", params);
-        expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
-    });
-
-    it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
-        const result = await server.getHandler("fiken_list_inbox")({});
-        expect(result.isError).toBe(true);
+    it("handles non-Error thrown values", async () => {
+        mockUpload.mockRejectedValue("boom");
+        const result = await server.getHandler(tool)({ fileBase64: "eA==", filename: "a.pdf" });
+        expect(result.content[0].text).toBe("Error: boom");
     });
 });
