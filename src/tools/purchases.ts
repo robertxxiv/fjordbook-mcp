@@ -25,6 +25,22 @@ const paymentSchema = z.object({
     fee: z.number().int().optional().describe("Payment fee in NOK cents"),
 });
 
+const accrualSchema = z.object({
+    lineId: z
+        .number()
+        .int()
+        .describe(
+            "The sale/purchase line (lineId) to accrue; must be on a result account (3000-7999)",
+        ),
+    startDate: z.string().describe("First period (month) of the accrual, YYYY-MM-DD"),
+    periods: z.number().int().min(1).max(120).describe("Number of monthly periods (1-120)"),
+    account: z
+        .string()
+        .describe(
+            "Accrual balance account. Sales: 1530 or 2965. Purchases: 1397, 1700, 1710, 1742, 1743, 1744, 1749 or 2961",
+        ),
+});
+
 const draftLine = z.object({
     text: z.string().describe("Description of the sale/purchase line"),
     vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
@@ -59,20 +75,37 @@ const attachmentSchema = z
             ),
         filePath: z.string().optional().describe("Local path to the attachment file"),
         fileBase64: z.string().optional().describe("Base64-encoded attachment file contents"),
-        attachToPayment: z.boolean().optional(),
-        attachToSale: z.boolean().optional(),
+        ehfDocumentId: z
+            .number()
+            .int()
+            .optional()
+            .describe("Attach an existing received EHF document instead of uploading a file"),
+        inboxDocumentId: z
+            .number()
+            .int()
+            .optional()
+            .describe("Attach an existing inbox document instead of uploading a file"),
+        attachToPayment: z
+            .boolean()
+            .optional()
+            .describe("True if the attachment documents the payment (e.g. bank/card receipt)"),
+        attachToSale: z
+            .boolean()
+            .optional()
+            .describe("True if the attachment documents the purchase (e.g. invoice)"),
     })
     .superRefine((value, ctx) => {
-        if (!value.filePath && !value.fileBase64) {
+        const sources = [
+            value.filePath,
+            value.fileBase64,
+            value.ehfDocumentId,
+            value.inboxDocumentId,
+        ].filter((s) => s !== undefined && s !== "").length;
+        if (sources !== 1) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "Either filePath or fileBase64 is required",
-            });
-        }
-        if (value.filePath && value.fileBase64) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "Provide only one of filePath or fileBase64",
+                message:
+                    "Provide exactly one of filePath, fileBase64, ehfDocumentId or inboxDocumentId",
             });
         }
         if (value.fileBase64 && !value.filename) {
@@ -102,20 +135,35 @@ export function register(server: McpServer) {
             ...R,
             description: "Returns all purchases for the company",
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-                sortBy: z.string().optional(),
-                date: z.string().optional().describe("YYYY-MM-DD"),
-                dateLe: z.string().optional(),
-                dateLt: z.string().optional(),
-                dateGe: z.string().optional(),
-                dateGt: z.string().optional(),
-                paid: z.boolean().optional(),
-                settledDate: z.string().optional().describe("YYYY-MM-DD"),
-                settledDateLe: z.string().optional(),
-                settledDateLt: z.string().optional(),
-                settledDateGe: z.string().optional(),
-                settledDateGt: z.string().optional(),
+                page: z.number().int().min(0).optional().describe("Page number, starts at 0"),
+                pageSize: z
+                    .number()
+                    .int()
+                    .min(1)
+                    .max(100)
+                    .optional()
+                    .describe("Results per page (1-100, default 25)"),
+                date: z.string().optional().describe("Purchase date equals, YYYY-MM-DD"),
+                dateLe: z.string().optional().describe("Purchase date <=, YYYY-MM-DD"),
+                dateLt: z.string().optional().describe("Purchase date <, YYYY-MM-DD"),
+                dateGe: z.string().optional().describe("Purchase date >=, YYYY-MM-DD"),
+                dateGt: z.string().optional().describe("Purchase date >, YYYY-MM-DD"),
+                lastModified: z.string().optional().describe("Last modified equals, YYYY-MM-DD"),
+                lastModifiedLe: z.string().optional().describe("Last modified <=, YYYY-MM-DD"),
+                lastModifiedLt: z.string().optional().describe("Last modified <, YYYY-MM-DD"),
+                lastModifiedGe: z.string().optional().describe("Last modified >=, YYYY-MM-DD"),
+                lastModifiedGt: z.string().optional().describe("Last modified >, YYYY-MM-DD"),
+                sortBy: z
+                    .enum(["date asc", "date desc"])
+                    .optional()
+                    .describe('Sort order: "date asc" (default) or "date desc"'),
+                paid: z.boolean().optional().describe("Filter on whether the purchase is paid"),
+                settledDate: z.string().optional().describe("Settled date equals, YYYY-MM-DD"),
+                settledDateLe: z.string().optional().describe("Settled date <=, YYYY-MM-DD"),
+                settledDateLt: z.string().optional().describe("Settled date <, YYYY-MM-DD"),
+                settledDateGe: z.string().optional().describe("Settled date >=, YYYY-MM-DD"),
+                settledDateGt: z.string().optional().describe("Settled date >, YYYY-MM-DD"),
+                contactId: z.number().int().optional().describe("Supplier contact ID"),
             }),
         },
         async (p) => {
@@ -134,16 +182,19 @@ export function register(server: McpServer) {
             description: "Creates a new purchase. Amounts in NOK øre.",
             inputSchema: z.object({
                 identifier: z.string().optional().describe("Invoice/sale number or similar"),
-                date: z.string().describe("Payment date YYYY-MM-DD"),
-                dueDate: z.string().optional(),
+                date: z.string().describe("Purchase date YYYY-MM-DD"),
+                dueDate: z.string().optional().describe("Due date YYYY-MM-DD"),
                 kind: z
                     .enum(["cash_purchase", "supplier"])
                     .describe("Purchased with cash or through a supplier"),
                 lines: z.array(purchaseLine),
                 supplierId: z.number().int().optional().describe("Supplier contact ID"),
                 currency: z.string().describe('ISO 4217, e.g. "NOK"'),
-                paymentAccount: z.string().optional(),
-                paymentDate: z.string().optional(),
+                paymentAccount: z
+                    .string()
+                    .optional()
+                    .describe('Payment account, e.g. "1920:10001"'),
+                paymentDate: z.string().optional().describe("Payment date YYYY-MM-DD"),
                 paymentAmountInNok: z
                     .number()
                     .int()
@@ -183,7 +234,8 @@ export function register(server: McpServer) {
         "fiken_delete_purchase",
         {
             ...D,
-            description: "Deletes a purchase",
+            description:
+                "Marks a purchase as deleted. The purchase is not removed; a reverse transaction is created",
             inputSchema: z.object({
                 purchaseId: z.number().int(),
                 description: z.string().describe("Reason for deleting the purchase"),
@@ -223,7 +275,8 @@ export function register(server: McpServer) {
         "fiken_add_purchase_attachment",
         {
             ...W,
-            description: "Creates and adds a new attachment to a purchase",
+            description:
+                "Creates and adds a new attachment to a purchase. Provide exactly one source: filePath, fileBase64, ehfDocumentId or inboxDocumentId. At least one of attachToPayment and attachToSale must be true",
             inputSchema: attachmentSchema,
         },
         async (rawInput) => {
@@ -233,24 +286,27 @@ export function register(server: McpServer) {
                     filename,
                     filePath,
                     fileBase64,
+                    ehfDocumentId,
+                    inboxDocumentId,
                     attachToPayment,
                     attachToSale,
                 } = attachmentSchema.parse(rawInput);
-                const resolvedFilename = filename ?? basename(filePath!);
-                assertSupportedAttachmentFilename(resolvedFilename);
-
-                const bytes =
-                    fileBase64 !== undefined
-                        ? Buffer.from(fileBase64, "base64")
-                        : await readFile(filePath!);
                 const form = new FormData();
-                form.append("filename", resolvedFilename);
-                form.append("file", new Blob([bytes]), resolvedFilename);
+                if (ehfDocumentId === undefined && inboxDocumentId === undefined) {
+                    const resolvedFilename = filename ?? basename(filePath!);
+                    assertSupportedAttachmentFilename(resolvedFilename);
+                    const bytes =
+                        fileBase64 !== undefined
+                            ? Buffer.from(fileBase64, "base64")
+                            : await readFile(filePath!);
+                    form.append("filename", resolvedFilename);
+                    form.append("file", new Blob([bytes]), resolvedFilename);
+                }
 
                 return ok(
                     await uploadMultipart(
                         cp(`/purchases/${purchaseId}/attachments`),
-                        { attachToPayment, attachToSale },
+                        { attachToPayment, attachToSale, ehfDocumentId, inboxDocumentId },
                         form,
                     ),
                 );
@@ -369,6 +425,153 @@ export function register(server: McpServer) {
         async ({ draftId }) => {
             try {
                 return ok(await mutate("POST", cp(`/purchases/drafts/${draftId}/createPurchase`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_purchase_payments",
+        {
+            ...R,
+            description: "Returns all payments for a purchase",
+            inputSchema: z.object({ purchaseId: z.number().int() }),
+        },
+        async ({ purchaseId }) => {
+            try {
+                return ok(await get(cp(`/purchases/${purchaseId}/payments`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_create_purchase_payment",
+        {
+            ...W,
+            description: "Creates a new payment for a purchase. Amounts in cents",
+            inputSchema: z.object({ purchaseId: z.number().int(), ...paymentSchema.shape }),
+        },
+        async ({ purchaseId, ...body }) => {
+            try {
+                return ok(await mutate("POST", cp(`/purchases/${purchaseId}/payments`), body));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_purchase_payment",
+        {
+            ...R,
+            description: "Returns a specific payment on a purchase",
+            inputSchema: z.object({ purchaseId: z.number().int(), paymentId: z.number().int() }),
+        },
+        async ({ purchaseId, paymentId }) => {
+            try {
+                return ok(await get(cp(`/purchases/${purchaseId}/payments/${paymentId}`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_delete_purchase_payment",
+        {
+            ...D,
+            description:
+                'Undoes a payment on a purchase ("Angre"). An open payment is deleted; a closed one gets a reverse transaction',
+            inputSchema: z.object({
+                purchaseId: z.number().int(),
+                paymentId: z.number().int(),
+                description: z
+                    .string()
+                    .optional()
+                    .describe("Optional description used when the payment is reversed"),
+            }),
+        },
+        async ({ purchaseId, paymentId, description }) => {
+            try {
+                const path = cp(`/purchases/${purchaseId}/payments/${paymentId}`);
+                return ok(
+                    await mutate(
+                        "DELETE",
+                        description === undefined
+                            ? path
+                            : `${path}?description=${encodeURIComponent(description)}`,
+                    ),
+                );
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_purchase_accruals",
+        {
+            ...R,
+            description: "Returns all accruals (periodisering) set up on a purchase",
+            inputSchema: z.object({ purchaseId: z.number().int() }),
+        },
+        async ({ purchaseId }) => {
+            try {
+                return ok(await get(cp(`/purchases/${purchaseId}/accruals`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_create_purchase_accrual",
+        {
+            ...W,
+            description:
+                "Sets up an accrual for one line on a purchase, spreading the line amount evenly over monthly periods. Only lines on result accounts (3000-7999) can be accrued",
+            inputSchema: z.object({ purchaseId: z.number().int(), ...accrualSchema.shape }),
+        },
+        async ({ purchaseId, ...body }) => {
+            try {
+                return ok(await mutate("POST", cp(`/purchases/${purchaseId}/accruals`), body));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_purchase_accrual",
+        {
+            ...R,
+            description: "Returns a specific accrual on a purchase",
+            inputSchema: z.object({ purchaseId: z.number().int(), accrualId: z.number().int() }),
+        },
+        async ({ purchaseId, accrualId }) => {
+            try {
+                return ok(await get(cp(`/purchases/${purchaseId}/accruals/${accrualId}`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_delete_purchase_accrual",
+        {
+            ...D,
+            description: "Deletes an accrual on a purchase",
+            inputSchema: z.object({ purchaseId: z.number().int(), accrualId: z.number().int() }),
+        },
+        async ({ purchaseId, accrualId }) => {
+            try {
+                return ok(
+                    await mutate("DELETE", cp(`/purchases/${purchaseId}/accruals/${accrualId}`)),
+                );
             } catch (e) {
                 return err(e);
             }

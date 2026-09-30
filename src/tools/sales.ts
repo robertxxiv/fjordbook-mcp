@@ -23,6 +23,22 @@ const paymentSchema = z.object({
     fee: z.number().int().optional().describe("Payment fee in NOK cents"),
 });
 
+const accrualSchema = z.object({
+    lineId: z
+        .number()
+        .int()
+        .describe(
+            "The sale/purchase line (lineId) to accrue; must be on a result account (3000-7999)",
+        ),
+    startDate: z.string().describe("First period (month) of the accrual, YYYY-MM-DD"),
+    periods: z.number().int().min(1).max(120).describe("Number of monthly periods (1-120)"),
+    account: z
+        .string()
+        .describe(
+            "Accrual balance account. Sales: 1530 or 2965. Purchases: 1397, 1700, 1710, 1742, 1743, 1744, 1749 or 2961",
+        ),
+});
+
 const draftLine = z.object({
     text: z.string().describe("Description of the sale/purchase line"),
     vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
@@ -53,22 +69,27 @@ export function register(server: McpServer) {
             ...R,
             description: "Returns all sales for the company",
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
-                sortBy: z.string().optional(),
-                date: z.string().optional().describe("YYYY-MM-DD"),
-                dateLe: z.string().optional(),
-                dateLt: z.string().optional(),
-                dateGe: z.string().optional(),
-                dateGt: z.string().optional(),
-                lastModified: z.string().optional(),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedLt: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
-                lastModifiedGt: z.string().optional(),
+                page: z.number().int().min(0).optional().describe("Page number, starts at 0"),
+                pageSize: z
+                    .number()
+                    .int()
+                    .min(1)
+                    .max(100)
+                    .optional()
+                    .describe("Results per page (1-100, default 25)"),
+                date: z.string().optional().describe("Sale date equals, YYYY-MM-DD"),
+                dateLe: z.string().optional().describe("Sale date <=, YYYY-MM-DD"),
+                dateLt: z.string().optional().describe("Sale date <, YYYY-MM-DD"),
+                dateGe: z.string().optional().describe("Sale date >=, YYYY-MM-DD"),
+                dateGt: z.string().optional().describe("Sale date >, YYYY-MM-DD"),
+                lastModified: z.string().optional().describe("Last modified equals, YYYY-MM-DD"),
+                lastModifiedLe: z.string().optional().describe("Last modified <=, YYYY-MM-DD"),
+                lastModifiedLt: z.string().optional().describe("Last modified <, YYYY-MM-DD"),
+                lastModifiedGe: z.string().optional().describe("Last modified >=, YYYY-MM-DD"),
+                lastModifiedGt: z.string().optional().describe("Last modified >, YYYY-MM-DD"),
                 contactId: z.number().int().optional().describe("Customer contact ID"),
-                settled: z.boolean().optional(),
-                saleNumber: z.string().optional(),
+                settled: z.boolean().optional().describe("Filter on whether the sale is settled"),
+                saleNumber: z.string().optional().describe("Filter on sale number"),
             }),
         },
         async (p) => {
@@ -87,20 +108,28 @@ export function register(server: McpServer) {
             description: "Creates a new sale. Amounts in NOK øre.",
             inputSchema: z.object({
                 date: z.string().describe("Sale date YYYY-MM-DD"),
-                kind: z.enum(["cash_sale", "invoice", "external_invoice"]),
+                kind: z
+                    .enum(["cash_sale", "invoice", "external_invoice"])
+                    .describe("Kind of sale: cash_sale, invoice or external_invoice"),
                 totalPaid: z.number().int().optional().describe("Total paid in NOK øre"),
-                totalPaidInCurrency: z.number().int().optional(),
+                totalPaidInCurrency: z
+                    .number()
+                    .int()
+                    .optional()
+                    .describe("Total paid in currency cents"),
                 currency: z.string().describe('ISO 4217, e.g. "NOK"'),
                 saleNumber: z.string().optional(),
                 customerId: z.number().int().optional().describe("Customer contact ID"),
                 dueDate: z.string().optional().describe("YYYY-MM-DD"),
                 kid: z.string().optional().describe("Norwegian KID number"),
-                paymentDate: z.string().optional(),
-                paymentFee: z.number().int().optional(),
-                paymentAccount: z.string().optional(),
+                paymentDate: z.string().optional().describe("Payment date YYYY-MM-DD"),
+                paymentFee: z.number().int().optional().describe("Payment fee in NOK cents"),
+                paymentAccount: z
+                    .string()
+                    .optional()
+                    .describe('Payment account, e.g. "1920:10001"'),
                 projectId: z.number().int().optional(),
                 lines: z.array(saleLine),
-                paid: z.boolean(),
             }),
         },
         async (body) => {
@@ -132,12 +161,21 @@ export function register(server: McpServer) {
         "fiken_delete_sale",
         {
             ...D,
-            description: "Deletes a sale",
-            inputSchema: z.object({ saleId: z.number().int() }),
+            description:
+                "Marks a sale as deleted. The sale is not removed; a reverse transaction is created and its deleted flag is set",
+            inputSchema: z.object({
+                saleId: z.number().int(),
+                description: z.string().describe("Reason for deleting the sale"),
+            }),
         },
-        async ({ saleId }) => {
+        async ({ saleId, description }) => {
             try {
-                return ok(await mutate("DELETE", cp(`/sales/${saleId}`)));
+                return ok(
+                    await mutate(
+                        "PATCH",
+                        `${cp(`/sales/${saleId}/delete`)}?description=${encodeURIComponent(description)}`,
+                    ),
+                );
             } catch (e) {
                 return err(e);
             }
@@ -269,6 +307,207 @@ export function register(server: McpServer) {
         async ({ draftId }) => {
             try {
                 return ok(await mutate("POST", cp(`/sales/drafts/${draftId}/createSale`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_settle_sale",
+        {
+            ...W,
+            description:
+                'Marks a sale as settled without payment ("sett til oppgjort uten betaling"). Send a new settledDate to change the settlement date',
+            inputSchema: z.object({
+                saleId: z.number().int(),
+                settledDate: z.string().describe("Settlement date YYYY-MM-DD"),
+            }),
+        },
+        async ({ saleId, settledDate }) => {
+            try {
+                return ok(
+                    await mutate(
+                        "PATCH",
+                        `${cp(`/sales/${saleId}/settled`)}?settledDate=${encodeURIComponent(settledDate)}`,
+                    ),
+                );
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_write_off_sale",
+        {
+            ...W,
+            description:
+                "Registers a write-off (tapsføring) for a sale. The sale must not be a cash sale, already written off, settled or deleted, and must have an outstanding balance. The write-off date must be after the sale date",
+            inputSchema: z.object({
+                saleId: z.number().int(),
+                type: z
+                    .enum([
+                        "OVERDUE_6_MONTHS",
+                        "COLLECTION_FAILED",
+                        "CUSTOMER_BANKRUPTCY",
+                        "DEEMED_IRRECOVERABLE",
+                    ])
+                    .describe(
+                        "Reason: OVERDUE_6_MONTHS (6+ months past due and 3+ reminders sent), COLLECTION_FAILED (debt collection unsuccessful), CUSTOMER_BANKRUPTCY, DEEMED_IRRECOVERABLE (overall assessment)",
+                    ),
+                date: z.string().describe("Write-off date YYYY-MM-DD, must be after the sale date"),
+                comment: z.string().max(200).optional().describe("Optional comment, max 200 chars"),
+            }),
+        },
+        async ({ saleId, ...body }) => {
+            try {
+                return ok(await mutate("PATCH", cp(`/sales/${saleId}/writeOff`), body));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_sale_payments",
+        {
+            ...R,
+            description: "Returns all payments for a sale",
+            inputSchema: z.object({ saleId: z.number().int() }),
+        },
+        async ({ saleId }) => {
+            try {
+                return ok(await get(cp(`/sales/${saleId}/payments`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_create_sale_payment",
+        {
+            ...W,
+            description: "Creates a new payment for a sale. Amounts in cents",
+            inputSchema: z.object({ saleId: z.number().int(), ...paymentSchema.shape }),
+        },
+        async ({ saleId, ...body }) => {
+            try {
+                return ok(await mutate("POST", cp(`/sales/${saleId}/payments`), body));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_sale_payment",
+        {
+            ...R,
+            description: "Returns a specific payment on a sale",
+            inputSchema: z.object({ saleId: z.number().int(), paymentId: z.number().int() }),
+        },
+        async ({ saleId, paymentId }) => {
+            try {
+                return ok(await get(cp(`/sales/${saleId}/payments/${paymentId}`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_delete_sale_payment",
+        {
+            ...D,
+            description:
+                'Undoes a payment on a sale ("Angre"). An open payment is deleted; a closed one gets a reverse transaction. Fails if already deleted, on a written-off sale, or related to debt collection',
+            inputSchema: z.object({
+                saleId: z.number().int(),
+                paymentId: z.number().int(),
+                description: z
+                    .string()
+                    .optional()
+                    .describe("Optional description used when the payment is reversed"),
+            }),
+        },
+        async ({ saleId, paymentId, description }) => {
+            try {
+                const path = cp(`/sales/${saleId}/payments/${paymentId}`);
+                return ok(
+                    await mutate(
+                        "DELETE",
+                        description === undefined
+                            ? path
+                            : `${path}?description=${encodeURIComponent(description)}`,
+                    ),
+                );
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_sale_accruals",
+        {
+            ...R,
+            description: "Returns all accruals (periodisering) set up on a sale",
+            inputSchema: z.object({ saleId: z.number().int() }),
+        },
+        async ({ saleId }) => {
+            try {
+                return ok(await get(cp(`/sales/${saleId}/accruals`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_create_sale_accrual",
+        {
+            ...W,
+            description:
+                "Sets up an accrual for one line on a sale, spreading the line amount evenly over monthly periods. Only lines on result accounts (3000-7999) can be accrued; sales with sales-cost lines are not supported",
+            inputSchema: z.object({ saleId: z.number().int(), ...accrualSchema.shape }),
+        },
+        async ({ saleId, ...body }) => {
+            try {
+                return ok(await mutate("POST", cp(`/sales/${saleId}/accruals`), body));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_get_sale_accrual",
+        {
+            ...R,
+            description: "Returns a specific accrual on a sale",
+            inputSchema: z.object({ saleId: z.number().int(), accrualId: z.number().int() }),
+        },
+        async ({ saleId, accrualId }) => {
+            try {
+                return ok(await get(cp(`/sales/${saleId}/accruals/${accrualId}`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_delete_sale_accrual",
+        {
+            ...D,
+            description: "Deletes an accrual on a sale",
+            inputSchema: z.object({ saleId: z.number().int(), accrualId: z.number().int() }),
+        },
+        async ({ saleId, accrualId }) => {
+            try {
+                return ok(await mutate("DELETE", cp(`/sales/${saleId}/accruals/${accrualId}`)));
             } catch (e) {
                 return err(e);
             }
