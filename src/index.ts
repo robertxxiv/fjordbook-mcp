@@ -15,6 +15,10 @@ import { register as registerTransactions } from "./tools/transactions.js";
 import { register as registerPurchases } from "./tools/purchases.js";
 import { register as registerSales } from "./tools/sales.js";
 import { register as registerMisc } from "./tools/misc.js";
+import { register as registerRecurringInvoices } from "./tools/recurringInvoices.js";
+import { register as registerProducts } from "./tools/products.js";
+import { register as registerTimeTracking } from "./tools/timeTracking.js";
+import { register as registerAttachments } from "./tools/attachments.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 
@@ -35,6 +39,10 @@ registerTransactions(server);
 registerPurchases(server);
 registerSales(server);
 registerMisc(server);
+registerRecurringInvoices(server);
+registerProducts(server);
+registerTimeTracking(server);
+registerAttachments(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

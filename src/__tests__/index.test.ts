@@ -25,6 +25,10 @@ const registerTransactions = vi.fn();
 const registerPurchases = vi.fn();
 const registerSales = vi.fn();
 const registerMisc = vi.fn();
+const registerRecurringInvoices = vi.fn();
+const registerProducts = vi.fn();
+const registerTimeTracking = vi.fn();
+const registerAttachments = vi.fn();
 
 vi.mock("../tools/user.js", () => ({ register: registerUser }));
 vi.mock("../tools/accounts.js", () => ({ register: registerAccounts }));
@@ -38,6 +42,10 @@ vi.mock("../tools/transactions.js", () => ({ register: registerTransactions }));
 vi.mock("../tools/purchases.js", () => ({ register: registerPurchases }));
 vi.mock("../tools/sales.js", () => ({ register: registerSales }));
 vi.mock("../tools/misc.js", () => ({ register: registerMisc }));
+vi.mock("../tools/recurringInvoices.js", () => ({ register: registerRecurringInvoices }));
+vi.mock("../tools/products.js", () => ({ register: registerProducts }));
+vi.mock("../tools/timeTracking.js", () => ({ register: registerTimeTracking }));
+vi.mock("../tools/attachments.js", () => ({ register: registerAttachments }));
 
 describe("index", () => {
     beforeAll(async () => {
@@ -57,7 +65,7 @@ describe("index", () => {
         expect(mockConnect).toHaveBeenCalledWith(MockStdioTransport.mock.results[0].value);
     });
 
-    it("registers all 12 tool modules", () => {
+    it("registers all 16 tool modules", () => {
         const serverInstance = MockMcpServer.mock.results[0].value;
         expect(registerUser).toHaveBeenCalledWith(serverInstance);
         expect(registerAccounts).toHaveBeenCalledWith(serverInstance);
@@ -71,5 +79,9 @@ describe("index", () => {
         expect(registerPurchases).toHaveBeenCalledWith(serverInstance);
         expect(registerSales).toHaveBeenCalledWith(serverInstance);
         expect(registerMisc).toHaveBeenCalledWith(serverInstance);
+        expect(registerRecurringInvoices).toHaveBeenCalledWith(serverInstance);
+        expect(registerProducts).toHaveBeenCalledWith(serverInstance);
+        expect(registerTimeTracking).toHaveBeenCalledWith(serverInstance);
+        expect(registerAttachments).toHaveBeenCalledWith(serverInstance);
     });
 });
