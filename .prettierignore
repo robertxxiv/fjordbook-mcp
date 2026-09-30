@@ -5,3 +5,4 @@ dist
 .idea
 .prettierignore
 .claude/
+docs/fiken-openapi.yaml
