@@ -19,6 +19,16 @@ export function cp(path: string): string {
 
 type Params = Record<string, string | number | boolean | undefined | null>;
 
+function buildUrl(path: string, params?: Params): URL {
+    const url = new URL(`${BASE}${path}`);
+    if (params) {
+        for (const [k, v] of Object.entries(params)) {
+            if (v != null) url.searchParams.set(k, String(v));
+        }
+    }
+    return url;
+}
+
 async function parseMutationResponse(r: Response): Promise<unknown> {
     if (!r.ok) throw new Error(`Fiken ${r.status}: ${await r.text()}`);
     if (r.status === 204) return { success: true };
@@ -31,12 +41,7 @@ async function parseMutationResponse(r: Response): Promise<unknown> {
 }
 
 export async function get(path: string, params?: Params): Promise<unknown> {
-    const url = new URL(`${BASE}${path}`);
-    if (params) {
-        for (const [k, v] of Object.entries(params)) {
-            if (v != null) url.searchParams.set(k, String(v));
-        }
-    }
+    const url = buildUrl(path, params);
     const r = await fetch(url, {
         headers: { Authorization: `Bearer ${token()}` },
     });
@@ -61,12 +66,7 @@ export async function uploadMultipart(
     params: Params | undefined,
     form: FormData,
 ): Promise<unknown> {
-    const url = new URL(`${BASE}${path}`);
-    if (params) {
-        for (const [k, v] of Object.entries(params)) {
-            if (v != null) url.searchParams.set(k, String(v));
-        }
-    }
+    const url = buildUrl(path, params);
     const r = await fetch(url, {
         method: "POST",
         headers: { Authorization: `Bearer ${token()}` },
