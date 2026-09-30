@@ -1,21 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, mutate, cp, slug } from "../client.js";
+import { R, D, ok, err } from "./shared.js";
 
-const R = { annotations: { readOnlyHint: true } } as const;
 const W = { annotations: { readOnlyHint: false, destructiveHint: true } } as const;
-
-function ok(data: unknown) {
-    return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-}
-function err(e: unknown) {
-    return {
-        content: [
-            { type: "text" as const, text: `Error: ${e instanceof Error ? e.message : String(e)}` },
-        ],
-        isError: true as const,
-    };
-}
 
 export function register(server: McpServer) {
     server.registerTool(

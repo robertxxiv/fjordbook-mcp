@@ -3,22 +3,7 @@ import { basename } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, mutate, cp, uploadMultipart } from "../client.js";
-
-const R = { annotations: { readOnlyHint: true } } as const;
-const W = { annotations: { readOnlyHint: false } } as const;
-const D = { annotations: { readOnlyHint: false, destructiveHint: true } } as const;
-
-function ok(data: unknown) {
-    return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-}
-function err(e: unknown) {
-    return {
-        content: [
-            { type: "text" as const, text: `Error: ${e instanceof Error ? e.message : String(e)}` },
-        ],
-        isError: true as const,
-    };
-}
+import { R, W, D, ok, err } from "./shared.js";
 
 const purchaseLine = z.object({
     description: z.string().describe("Description of the product or service"),

@@ -1,21 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, mutate, cp } from "../client.js";
-
-const R = { annotations: { readOnlyHint: true } } as const;
-const W = { annotations: { readOnlyHint: false } } as const;
-
-function ok(data: unknown) {
-    return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-}
-function err(e: unknown) {
-    return {
-        content: [
-            { type: "text" as const, text: `Error: ${e instanceof Error ? e.message : String(e)}` },
-        ],
-        isError: true as const,
-    };
-}
+import { R, W, ok, err } from "./shared.js";
 
 const paging = z.object({
     page: z.number().int().optional(),
