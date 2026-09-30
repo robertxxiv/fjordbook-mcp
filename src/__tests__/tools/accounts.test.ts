@@ -26,7 +26,13 @@ describe("fiken_list_accounts", () => {
     it("calls GET /accounts with params", async () => {
         const data = [{ code: "1920", name: "Bank" }];
         mockGet.mockResolvedValue(data);
-        const params = { fromAccount: "1000", toAccount: "9999", page: 0, pageSize: 25 };
+        const params = {
+            fromAccount: 1000,
+            toAccount: 9999,
+            page: 0,
+            pageSize: 25,
+            range: "1000-1500, 2000",
+        };
         const result = await server.getHandler("fiken_list_accounts")(params);
         expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/accounts", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
@@ -69,8 +75,8 @@ describe("fiken_list_account_balances", () => {
         mockGet.mockResolvedValue(data);
         const params = {
             date: "2024-12-31",
-            fromAccount: "1000",
-            toAccount: "9999",
+            fromAccount: 1000,
+            toAccount: 9999,
             page: 0,
             pageSize: 25,
         };

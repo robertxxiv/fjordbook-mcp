@@ -12,13 +12,45 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: z.number().int().optional(),
                 pageSize: z.number().int().optional(),
-                date: z.string().optional().describe("YYYY-MM-DD"),
-                dateLe: z.string().optional(),
-                dateLt: z.string().optional(),
-                dateGe: z.string().optional(),
-                dateGt: z.string().optional(),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
+                date: z.string().optional().describe("Date equal to, format YYYY-MM-DD"),
+                dateLe: z.string().optional().describe("Date on or before, format YYYY-MM-DD"),
+                dateLt: z.string().optional().describe("Date strictly before, format YYYY-MM-DD"),
+                dateGe: z.string().optional().describe("Date on or after, format YYYY-MM-DD"),
+                dateGt: z.string().optional().describe("Date strictly after, format YYYY-MM-DD"),
+                lastModified: z.string().optional().describe("Last modified on, format YYYY-MM-DD"),
+                lastModifiedLe: z
+                    .string()
+                    .optional()
+                    .describe("Last modified on or before, format YYYY-MM-DD"),
+                lastModifiedLt: z
+                    .string()
+                    .optional()
+                    .describe("Last modified strictly before, format YYYY-MM-DD"),
+                lastModifiedGe: z
+                    .string()
+                    .optional()
+                    .describe("Last modified on or after, format YYYY-MM-DD"),
+                lastModifiedGt: z
+                    .string()
+                    .optional()
+                    .describe("Last modified strictly after, format YYYY-MM-DD"),
+                createdDate: z.string().optional().describe("Created on, format YYYY-MM-DD"),
+                createdDateLe: z
+                    .string()
+                    .optional()
+                    .describe("Created on or before, format YYYY-MM-DD"),
+                createdDateLt: z
+                    .string()
+                    .optional()
+                    .describe("Created strictly before, format YYYY-MM-DD"),
+                createdDateGe: z
+                    .string()
+                    .optional()
+                    .describe("Created on or after, format YYYY-MM-DD"),
+                createdDateGt: z
+                    .string()
+                    .optional()
+                    .describe("Created strictly after, format YYYY-MM-DD"),
             }),
         },
         async (p) => {
@@ -68,7 +100,14 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a new general journal entry. Amounts are in NOK øre (cents).",
             inputSchema: z.object({
-                open: z.boolean().optional().describe("Whether the entry is open"),
+                description: z
+                    .string()
+                    .optional()
+                    .describe("Description of the general journal entry as a whole"),
+                open: z
+                    .boolean()
+                    .optional()
+                    .describe("Whether the entry is left open (default false = closed)"),
                 journalEntries: z
                     .array(
                         z.object({
@@ -77,11 +116,44 @@ export function register(server: McpServer) {
                             lines: z
                                 .array(
                                     z.object({
-                                        amount: z.number().int().describe("Amount in NOK øre"),
-                                        debitAccount: z.string().optional(),
-                                        debitVatCode: z.number().int().optional(),
-                                        creditAccount: z.string().optional(),
-                                        creditVatCode: z.number().int().optional(),
+                                        amount: z
+                                            .number()
+                                            .int()
+                                            .describe(
+                                                "Amount in NOK øre: net (excl. VAT) for debitAccount lines, gross (incl. VAT) for creditAccount lines",
+                                            ),
+                                        account: z
+                                            .string()
+                                            .optional()
+                                            .describe('Account code, e.g. "3000"'),
+                                        vatCode: z
+                                            .string()
+                                            .optional()
+                                            .describe("VAT code for account"),
+                                        debitAccount: z
+                                            .string()
+                                            .optional()
+                                            .describe("Account code to debit"),
+                                        debitVatCode: z
+                                            .number()
+                                            .int()
+                                            .optional()
+                                            .describe("VAT code for the debit account"),
+                                        creditAccount: z
+                                            .string()
+                                            .optional()
+                                            .describe("Account code to credit"),
+                                        creditVatCode: z
+                                            .number()
+                                            .int()
+                                            .optional()
+                                            .describe("VAT code for the credit account"),
+                                        projectId: z
+                                            .array(z.number().int())
+                                            .optional()
+                                            .describe(
+                                                "IDs of projects the line is associated with",
+                                            ),
                                     }),
                                 )
                                 .describe("Journal entry lines"),

@@ -10,10 +10,16 @@ export function register(server: McpServer) {
             ...R,
             description: "Retrieves bookkeeping accounts for the current year",
             inputSchema: z.object({
-                fromAccount: z.string().optional().describe("Filter from account code"),
-                toAccount: z.string().optional().describe("Filter to account code"),
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                fromAccount: z.number().int().optional().describe("First account number to return"),
+                toAccount: z.number().int().optional().describe("Last account number to return"),
+                range: z
+                    .string()
+                    .optional()
+                    .describe(
+                        'Comma-separated account numbers or ranges, e.g. "1000-1500, 1580-1999, 2000"',
+                    ),
+                page: z.number().int().optional().describe("Page number, 0-indexed"),
+                pageSize: z.number().int().optional().describe("Results per page, max 100"),
             }),
         },
         async (p) => {
@@ -50,10 +56,10 @@ export function register(server: McpServer) {
             description: "Retrieves accounts and closing balances for a given date",
             inputSchema: z.object({
                 date: z.string().describe("Date in YYYY-MM-DD format (required)"),
-                fromAccount: z.string().optional(),
-                toAccount: z.string().optional(),
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                fromAccount: z.number().int().optional().describe("First account number to return"),
+                toAccount: z.number().int().optional().describe("Last account number to return"),
+                page: z.number().int().optional().describe("Page number, 0-indexed"),
+                pageSize: z.number().int().optional().describe("Results per page, max 100"),
             }),
         },
         async (p) => {
@@ -92,7 +98,12 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: z.number().int().optional(),
                 pageSize: z.number().int().optional(),
-                inactive: z.boolean().optional().describe("Include inactive accounts"),
+                inactive: z
+                    .boolean()
+                    .optional()
+                    .describe(
+                        "false = only active bank accounts, true = only inactive bank accounts",
+                    ),
             }),
         },
         async (p) => {
@@ -111,14 +122,13 @@ export function register(server: McpServer) {
             description: "Creates a new bank account for the company",
             inputSchema: z.object({
                 name: z.string().describe("Name of the bank account"),
-                bankAccountNumber: z.string().optional().describe("Norwegian bank account number"),
+                bankAccountNumber: z.string().describe("Bank account number"),
                 iban: z.string().optional(),
                 bic: z.string().optional(),
-                foreignService: z
-                    .boolean()
-                    .optional()
-                    .describe("True if this is a foreign bank service"),
-                type: z.enum(["normal", "tax_deduction", "foreign", "credit_card"]).optional(),
+                foreignService: z.string().optional().describe("Name of the foreign bank service"),
+                type: z
+                    .enum(["normal", "tax_deduction", "foreign", "credit_card"])
+                    .describe("Bank account type: normal, tax_deduction, foreign or credit_card"),
                 inactive: z.boolean().optional(),
             }),
         },
