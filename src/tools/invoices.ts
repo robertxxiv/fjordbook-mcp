@@ -22,12 +22,51 @@ const invoiceLine = z.object({
     incomeAccount: z.string().optional(),
 });
 
+export const draftLine = z.object({
+    productId: z.number().int().optional().describe("Product ID to put on the line"),
+    description: z.string().max(200).optional().describe("Description of the product or service"),
+    unitPrice: z.number().int().optional().describe("Net price per unit in cents"),
+    vatType: z
+        .string()
+        .optional()
+        .describe(
+            "VAT type for sales: NONE, HIGH, MEDIUM, RAW_FISH, LOW, EXEMPT_IMPORT_EXPORT, EXEMPT, OUTSIDE, EXEMPT_REVERSE",
+        ),
+    quantity: z.number().describe("Number of units"),
+    discount: z.number().optional().describe("Discount percentage, 0 to 100 (decimals allowed)"),
+    comment: z.string().max(200).optional().describe("Additional text printed on the invoice"),
+    incomeAccount: z.string().optional().describe('Income account, e.g. "3000"'),
+});
+
+export const frequency = z
+    .object({
+        interval: z
+            .number()
+            .int()
+            .min(1)
+            .describe("Number of interval units between each generated invoice (minimum 1)"),
+        intervalUnit: z.enum(["DAY", "WEEK", "MONTH"]).describe("Unit of the interval"),
+    })
+    .describe("How often an invoice is generated, e.g. interval 1 + MONTH = monthly");
+
 const roundingType = z
     .enum(["none", "round_half", "round_whole", "round_down_half", "round_down_whole"])
-    .optional();
+    .optional()
+    .describe(
+        "Øre rounding of the total (NOK only): none (default), round_half, round_whole, round_down_half, round_down_whole",
+    );
 
 const draftSchema = z.object({
-    type: z.enum(["invoice", "cash_invoice", "offer", "order_confirmation", "credit_note"]),
+    type: z
+        .enum([
+            "invoice",
+            "cash_invoice",
+            "offer",
+            "order_confirmation",
+            "credit_note",
+            "repeating_invoice",
+        ])
+        .describe("Type of draft"),
     uuid: z.string().optional(),
     issueDate: z.string().optional().describe("YYYY-MM-DD"),
     daysUntilDueDate: z.number().int(),
@@ -35,8 +74,12 @@ const draftSchema = z.object({
     yourReference: z.string().optional(),
     ourReference: z.string().optional(),
     orderReference: z.string().optional(),
-    lines: z.array(invoiceLine).optional(),
-    currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
+    lines: z.array(draftLine).optional(),
+    currency: z
+        .string()
+        .regex(/^[A-Z]{3}$/)
+        .optional()
+        .describe('ISO 4217, e.g. "NOK"'),
     bankAccountNumber: z.string().optional(),
     iban: z.string().optional(),
     bic: z.string().optional(),
@@ -45,6 +88,15 @@ const draftSchema = z.object({
     contactPersonId: z.number().int().optional(),
     projectId: z.number().int().optional(),
     roundingType,
+    startDate: z
+        .string()
+        .optional()
+        .describe("YYYY-MM-DD. First issue date; required only when type is repeating_invoice"),
+    endDate: z
+        .string()
+        .optional()
+        .describe("YYYY-MM-DD. Optional last date; only for type repeating_invoice"),
+    frequency: frequency.optional().describe("Only for type repeating_invoice"),
 });
 
 export function register(server: McpServer) {
@@ -66,10 +118,19 @@ export function register(server: McpServer) {
                 lastModifiedLt: z.string().optional(),
                 lastModifiedGe: z.string().optional(),
                 lastModifiedGt: z.string().optional(),
+                dueDate: z.string().optional().describe("YYYY-MM-DD"),
+                dueDateLe: z.string().optional().describe("YYYY-MM-DD"),
+                dueDateLt: z.string().optional().describe("YYYY-MM-DD"),
+                dueDateGe: z.string().optional().describe("YYYY-MM-DD"),
+                dueDateGt: z.string().optional().describe("YYYY-MM-DD"),
                 customerId: z.number().int().optional(),
                 settled: z.boolean().optional(),
                 orderReference: z.string().optional(),
-                invoiceNumber: z.number().int().optional(),
+                invoiceDraftUuid: z
+                    .string()
+                    .optional()
+                    .describe("UUID of the invoice draft the invoice was created from"),
+                invoiceNumber: z.string().optional(),
             }),
         },
         async (p) => {
@@ -90,20 +151,24 @@ export function register(server: McpServer) {
                 uuid: z.string().optional(),
                 issueDate: z.string().describe("Issue date YYYY-MM-DD (required)"),
                 dueDate: z.string().describe("Due date YYYY-MM-DD"),
-                lines: z.array(invoiceLine).describe("Invoice line items (required)"),
+                lines: z.array(invoiceLine).min(1).describe("Invoice line items (at least one)"),
                 customerId: z.number().int().describe("Contact ID of the customer"),
-                bankAccountCode: z.string().describe("Bank account code for payment"),
+                bankAccountCode: z.string().describe("Bank account code, format 1920:XXXXX"),
                 cash: z.boolean().describe("True if paid immediately by cash"),
                 ourReference: z.string().optional(),
                 yourReference: z.string().optional(),
                 orderReference: z.string().optional(),
                 contactPersonId: z.number().int().optional(),
-                currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
-                invoiceText: z.string().optional(),
+                currency: z
+                    .string()
+                    .regex(/^[A-Z]{3}$/)
+                    .optional()
+                    .describe('ISO 4217, e.g. "NOK" (default NOK)'),
+                invoiceText: z.string().max(500).optional(),
                 paymentAccount: z
                     .string()
                     .optional()
-                    .describe("Account code, required if cash=true"),
+                    .describe("Account code for cash invoices, e.g. 1920:10001"),
                 projectId: z.number().int().optional(),
                 roundingType,
             }),
@@ -331,6 +396,25 @@ export function register(server: McpServer) {
         async ({ draftId }) => {
             try {
                 return ok(await get(cp(`/invoices/drafts/${draftId}/attachments`)));
+            } catch (e) {
+                return err(e);
+            }
+        },
+    );
+
+    server.registerTool(
+        "fiken_create_recurring_invoice_from_draft",
+        {
+            ...W,
+            description:
+                "Creates a recurring invoice from an existing draft of type repeating_invoice (activates it)",
+            inputSchema: z.object({ draftId: z.number().int() }),
+        },
+        async ({ draftId }) => {
+            try {
+                return ok(
+                    await mutate("POST", cp(`/invoices/drafts/${draftId}/createRecurringInvoice`)),
+                );
             } catch (e) {
                 return err(e);
             }

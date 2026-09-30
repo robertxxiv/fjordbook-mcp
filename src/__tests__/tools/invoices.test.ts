@@ -317,3 +317,36 @@ describe("fiken_create_invoice_from_draft", () => {
         expect(result.isError).toBe(true);
     });
 });
+
+describe("fiken_create_recurring_invoice_from_draft", () => {
+    it("calls POST /invoices/drafts/{draftId}/createRecurringInvoice", async () => {
+        mockMutate.mockResolvedValue({
+            created: true,
+            location: "/companies/test-slug/recurringInvoices/5",
+        });
+        const result = await server.getHandler("fiken_create_recurring_invoice_from_draft")({
+            draftId: 1,
+        });
+        expect(mockMutate).toHaveBeenCalledWith(
+            "POST",
+            "/companies/test-slug/invoices/drafts/1/createRecurringInvoice",
+        );
+        expect(result.content[0].text).toContain("created");
+    });
+
+    it("returns error on failure", async () => {
+        mockMutate.mockRejectedValue(new Error("Fiken 400: Bad Request"));
+        const result = await server.getHandler("fiken_create_recurring_invoice_from_draft")({
+            draftId: 999,
+        });
+        expect(result.isError).toBe(true);
+    });
+
+    it("handles non-Error thrown values", async () => {
+        mockMutate.mockRejectedValue("boom");
+        const result = await server.getHandler("fiken_create_recurring_invoice_from_draft")({
+            draftId: 1,
+        });
+        expect(result.content[0].text).toBe("Error: boom");
+    });
+});
