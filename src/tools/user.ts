@@ -1,9 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, cp } from "../client.js";
-import { ok, err } from "./shared.js";
-
-const R = { annotations: { readOnlyHint: true } } as const;
+import { R, ok, err } from "./shared.js";
 
 export function register(server: McpServer) {
     server.registerTool(
