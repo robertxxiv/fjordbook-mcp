@@ -165,7 +165,7 @@ describe("fiken_add_purchase_attachment", () => {
         const result = await server.getHandler("fiken_add_purchase_attachment")({
             purchaseId: 1,
             filename: "receipt.pdf",
-            fileBase64: Buffer.from("pdf").toString("base64"),
+            fileBase64: Buffer.from("%PDF-1").toString("base64"),
             attachToSale: true,
             attachToPayment: false,
         });
@@ -180,7 +180,7 @@ describe("fiken_add_purchase_attachment", () => {
             inboxDocumentId: undefined,
         });
         expect(form.get("filename")).toBe("receipt.pdf");
-        expect((form.get("file") as Blob).size).toBe(3);
+        expect((form.get("file") as Blob).size).toBe(6);
         expect(result.content[0].text).toContain("created");
     });
 
@@ -191,7 +191,7 @@ describe("fiken_add_purchase_attachment", () => {
         });
         const dir = await mkdtemp(join(tmpdir(), "fiken-mcp-"));
         const filePath = join(dir, "invoice.pdf");
-        await writeFile(filePath, Buffer.from("pdf"));
+        await writeFile(filePath, Buffer.from("%PDF-1"));
 
         try {
             const result = await server.getHandler("fiken_add_purchase_attachment")({
@@ -208,7 +208,7 @@ describe("fiken_add_purchase_attachment", () => {
                 inboxDocumentId: undefined,
             });
             expect(form.get("filename")).toBe("invoice.pdf");
-            expect((form.get("file") as Blob).size).toBe(3);
+            expect((form.get("file") as Blob).size).toBe(6);
             expect(result.isError).toBeUndefined();
         } finally {
             await rm(dir, { recursive: true, force: true });
@@ -228,7 +228,7 @@ describe("fiken_add_purchase_attachment", () => {
             purchaseId: 1,
             filename: "receipt.pdf",
             filePath: "/tmp/receipt.pdf",
-            fileBase64: Buffer.from("pdf").toString("base64"),
+            fileBase64: Buffer.from("%PDF-1").toString("base64"),
             attachToSale: true,
         });
         expect(duplicate.isError).toBe(true);
@@ -239,13 +239,13 @@ describe("fiken_add_purchase_attachment", () => {
         const result = await server.getHandler("fiken_add_purchase_attachment")({
             purchaseId: 1,
             filename: "receipt.txt",
-            fileBase64: Buffer.from("pdf").toString("base64"),
+            fileBase64: Buffer.from("%PDF-1").toString("base64"),
             attachToSale: true,
         });
 
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain(
-            "filename must end with .png, .jpeg, .jpg, .gif, or .pdf",
+            "filename must end with .png, .jpeg, .jpg, .gif or .pdf",
         );
     });
 
@@ -253,7 +253,7 @@ describe("fiken_add_purchase_attachment", () => {
         const result = await server.getHandler("fiken_add_purchase_attachment")({
             purchaseId: 1,
             filename: "receipt.pdf",
-            fileBase64: Buffer.from("pdf").toString("base64"),
+            fileBase64: Buffer.from("%PDF-1").toString("base64"),
         });
 
         expect(result.isError).toBe(true);
@@ -268,7 +268,7 @@ describe("fiken_add_purchase_attachment", () => {
         const result = await server.getHandler("fiken_add_purchase_attachment")({
             purchaseId: 1,
             filename: "receipt.pdf",
-            fileBase64: Buffer.from("pdf").toString("base64"),
+            fileBase64: Buffer.from("%PDF-1").toString("base64"),
             attachToSale: true,
         });
 

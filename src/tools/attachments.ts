@@ -1,9 +1,15 @@
-import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z, type ZodRawShape } from "zod";
 import { get, mutate, cp, uploadMultipart } from "../client.js";
 import { R, W, D, ok, err } from "./shared.js";
+import {
+    UPLOAD_ENV_NOTE,
+    SUPPORTED_EXTENSIONS_TEXT,
+    exactlyOneSource,
+    loadUpload,
+    parseInput,
+    type UploadSource,
+} from "./upload.js";
 
 type Resource = {
     /** Tool name suffix, e.g. "invoice_draft" gives fiken_add_invoice_draft_attachment */
@@ -114,12 +120,6 @@ const deleteOnly: Resource = {
     idParam: "purchaseId",
 };
 
-function assertSupportedFilename(filename: string) {
-    if (!/\.(png|jpe?g|gif|pdf)$/i.test(filename)) {
-        throw new Error("filename must end with .png, .jpeg, .jpg, .gif or .pdf");
-    }
-}
-
 function registerUpload(server: McpServer, r: Resource) {
     const shape: ZodRawShape = {
         [r.idParam]: z.number().int().describe(`ID of the ${r.label}`),
@@ -132,11 +132,12 @@ function registerUpload(server: McpServer, r: Resource) {
             .string()
             .optional()
             .describe(
-                "Filename; must end with .png, .jpeg, .jpg, .gif or .pdf. Defaults to the basename of filePath; required with fileBase64",
+                `Filename; must end with ${SUPPORTED_EXTENSIONS_TEXT}. Defaults to the basename of filePath; required with fileBase64`,
             ),
         ...r.form,
         ...r.query,
     };
+    const inputSchema = z.object(shape).superRefine(exactlyOneSource(!!r.documentIds));
     const idKey = r.idParam;
     const formKeys = Object.keys(r.form ?? {});
     const queryKeys = Object.keys(r.query ?? {});
@@ -144,39 +145,25 @@ function registerUpload(server: McpServer, r: Resource) {
         `fiken_add_${r.name}_attachment`,
         {
             ...W,
-            description: `Creates and adds a new attachment (.png, .jpeg, .jpg, .gif or .pdf) to a ${r.label}${
+            description: `Creates and adds a new attachment (${SUPPORTED_EXTENSIONS_TEXT}) to a ${r.label}${
                 r.documentIds
                     ? ", or attaches an existing EHF/inbox document via ehfDocumentId or inboxDocumentId"
                     : ""
-            }`,
-            inputSchema: z.object(shape),
+            }. Provide exactly one source: ${
+                r.documentIds
+                    ? "filePath, fileBase64, ehfDocumentId or inboxDocumentId"
+                    : "filePath or fileBase64"
+            }. ${UPLOAD_ENV_NOTE}`,
+            inputSchema,
         },
         async (raw) => {
             try {
-                const p = raw as Record<string, unknown>;
-                const filePath = p.filePath as string | undefined;
-                const fileBase64 = p.fileBase64 as string | undefined;
+                const p = parseInput(inputSchema, raw) as Record<string, unknown>;
                 const form = new FormData();
-                const hasDocument =
-                    p.ehfDocumentId !== undefined || p.inboxDocumentId !== undefined;
-                if (filePath && fileBase64) {
-                    throw new Error("Provide only one of filePath or fileBase64");
-                }
-                if (filePath || fileBase64) {
-                    const filename = (p.filename as string | undefined) ?? basename(filePath ?? "");
-                    if (!filename) throw new Error("filename is required when using fileBase64");
-                    assertSupportedFilename(filename);
-                    const bytes = fileBase64
-                        ? Buffer.from(fileBase64, "base64")
-                        : await readFile(filePath!);
+                if (p.filePath || p.fileBase64) {
+                    const { filename, blob } = await loadUpload(p as UploadSource);
                     form.append("filename", filename);
-                    form.append("file", new Blob([bytes]), filename);
-                } else if (!hasDocument) {
-                    throw new Error(
-                        r.documentIds
-                            ? "Either filePath, fileBase64, ehfDocumentId or inboxDocumentId is required"
-                            : "Either filePath or fileBase64 is required",
-                    );
+                    form.append("file", blob, filename);
                 }
                 for (const k of formKeys) {
                     if (p[k] !== undefined) form.append(k, String(p[k]));
@@ -209,6 +196,7 @@ function registerDelete(server: McpServer, r: Resource) {
                 [r.idParam]: z.number().int().describe(`ID of the ${r.label}`),
                 attachmentUuid: z
                     .string()
+                    .uuid()
                     .describe(
                         "UUID of the attachment, returned as `uuid` by the GET attachments call",
                     ),

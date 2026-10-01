@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { vi, describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
@@ -27,7 +28,7 @@ beforeAll(async () => {
     register(server);
     dir = await mkdtemp(join(tmpdir(), "fiken-att-"));
     pdfPath = join(dir, "receipt.pdf");
-    await writeFile(pdfPath, "pdf-bytes");
+    await writeFile(pdfPath, "%PDF-1.4 pdf-bytes");
 });
 afterAll(async () => {
     await rm(dir, { recursive: true, force: true });
@@ -37,6 +38,8 @@ beforeEach(() => {
 });
 
 // [tool suffix, id param, path base, has document ids]
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 const uploads: Array<[string, string, string, boolean]> = [
     ["contact", "contactId", "/contacts", false],
     ["invoice", "invoiceId", "/invoices", false],
@@ -72,18 +75,19 @@ describe.each(uploads)("fiken_add_%s_attachment", (name, idParam, base, hasDocs)
         mockUpload.mockResolvedValue({ created: true });
         await server.getHandler(tool)({
             [idParam]: 7,
-            fileBase64: Buffer.from("hello").toString("base64"),
+            fileBase64: Buffer.concat([PNG_MAGIC, Buffer.from("hello")]).toString("base64"),
             filename: "a.PNG",
         });
         const form = mockUpload.mock.calls[0][2];
         expect(form.get("filename")).toBe("a.PNG");
-        expect(await (form.get("file") as File).text()).toBe("hello");
+        expect((form.get("file") as File).type).toBe("image/png");
+        expect(await (form.get("file") as File).text()).toContain("hello");
     });
 
     it("rejects missing file source", async () => {
         const result = await server.getHandler(tool)({ [idParam]: 7 });
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain("is required");
+        expect(result.content[0].text).toContain("Provide exactly one of");
         expect(mockUpload).not.toHaveBeenCalled();
     });
 
@@ -93,7 +97,7 @@ describe.each(uploads)("fiken_add_%s_attachment", (name, idParam, base, hasDocs)
             filePath: pdfPath,
             fileBase64: "aGk=",
         });
-        expect(result.content[0].text).toContain("only one of filePath or fileBase64");
+        expect(result.content[0].text).toContain("Provide exactly one of");
     });
 
     it("requires filename with base64", async () => {
@@ -165,6 +169,29 @@ describe("fiken_add_sale_attachment", () => {
             attachToSale: false,
         });
         expect(mockUpload.mock.calls[0][1]).toEqual({ attachToPayment: true, attachToSale: false });
+    });
+});
+
+describe("attachmentUuid validation", () => {
+    it("rejects non-UUID attachmentUuid in the schema", () => {
+        const schemas: Array<{
+            name: string;
+            schema: { safeParse(v: unknown): { success: boolean } };
+        }> = [];
+        const capture = {
+            registerTool(name: string, config: { inputSchema: (typeof schemas)[0]["schema"] }) {
+                schemas.push({ name, schema: config.inputSchema });
+            },
+        } as unknown as McpServer;
+        register(capture);
+        const del = schemas.find((s) => s.name === "fiken_delete_invoice_attachment")!;
+        expect(del.schema.safeParse({ invoiceId: 1, attachmentUuid: "../x" }).success).toBe(false);
+        expect(
+            del.schema.safeParse({
+                invoiceId: 1,
+                attachmentUuid: "745b2f15-0000-4408-b000-b1d2d0610cb2",
+            }).success,
+        ).toBe(true);
     });
 });
 

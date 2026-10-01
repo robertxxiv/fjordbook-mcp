@@ -1,15 +1,18 @@
-import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
 import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import { UPLOAD_ENV_NOTE, exactlyOneSource, loadUpload, parseInput } from "./upload.js";
 
 const purchaseLine = z.object({
     description: z.string().describe("Description of the product or service"),
     vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
     netPrice: z.number().int().optional().describe("Net amount in cents"),
-    vat: z.number().int().optional().describe("VAT amount in NOK øre"),
+    vat: z
+        .number()
+        .int()
+        .optional()
+        .describe("VAT amount in cents (øre), e.g. 500000 = 5000.00 NOK"),
     account: z.string().optional().describe('Account code, e.g. "6540"'),
     netPriceInCurrency: z.number().int().optional().describe("Net amount in currency cents"),
     vatInCurrency: z.number().int().optional().describe("VAT amount in currency cents"),
@@ -20,7 +23,13 @@ const paymentSchema = z.object({
     date: z.string().describe("Payment date YYYY-MM-DD"),
     account: z.string().describe('Payment account, e.g. "1920:10001"'),
     amount: z.number().int().describe("Amount paid in cents"),
-    amountInNok: z.number().int().optional().describe("NOK amount for foreign currency payments"),
+    amountInNok: z
+        .number()
+        .int()
+        .optional()
+        .describe(
+            "NOK amount for foreign currency payments, in cents (øre), e.g. 500000 = 5000.00 NOK",
+        ),
     currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
     fee: z.number().int().optional().describe("Payment fee in NOK cents"),
 });
@@ -95,25 +104,7 @@ const attachmentSchema = z
             .describe("True if the attachment documents the purchase (e.g. invoice)"),
     })
     .superRefine((value, ctx) => {
-        const sources = [
-            value.filePath,
-            value.fileBase64,
-            value.ehfDocumentId,
-            value.inboxDocumentId,
-        ].filter((s) => s !== undefined && s !== "").length;
-        if (sources !== 1) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message:
-                    "Provide exactly one of filePath, fileBase64, ehfDocumentId or inboxDocumentId",
-            });
-        }
-        if (value.fileBase64 && !value.filename) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: "filename is required when using fileBase64",
-            });
-        }
+        exactlyOneSource(true)(value, ctx);
         if (!value.attachToPayment && !value.attachToSale) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
@@ -121,12 +112,6 @@ const attachmentSchema = z
             });
         }
     });
-
-function assertSupportedAttachmentFilename(filename: string) {
-    if (!/\.(png|jpe?g|gif|pdf)$/i.test(filename)) {
-        throw new Error("filename must end with .png, .jpeg, .jpg, .gif, or .pdf");
-    }
-}
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -270,7 +255,8 @@ export function register(server: McpServer) {
         {
             ...W,
             description:
-                "Creates and adds a new attachment to a purchase. Provide exactly one source: filePath, fileBase64, ehfDocumentId or inboxDocumentId. At least one of attachToPayment and attachToSale must be true",
+                "Creates and adds a new attachment to a purchase. Provide exactly one source: filePath, fileBase64, ehfDocumentId or inboxDocumentId. At least one of attachToPayment and attachToSale must be true. " +
+                UPLOAD_ENV_NOTE,
             inputSchema: attachmentSchema,
         },
         async (rawInput) => {
@@ -284,17 +270,16 @@ export function register(server: McpServer) {
                     inboxDocumentId,
                     attachToPayment,
                     attachToSale,
-                } = attachmentSchema.parse(rawInput);
+                } = parseInput(attachmentSchema, rawInput);
                 const form = new FormData();
                 if (ehfDocumentId === undefined && inboxDocumentId === undefined) {
-                    const resolvedFilename = filename ?? basename(filePath!);
-                    assertSupportedAttachmentFilename(resolvedFilename);
-                    const bytes =
-                        fileBase64 !== undefined
-                            ? Buffer.from(fileBase64, "base64")
-                            : await readFile(filePath!);
-                    form.append("filename", resolvedFilename);
-                    form.append("file", new Blob([bytes]), resolvedFilename);
+                    const { filename: name, blob } = await loadUpload({
+                        filename,
+                        filePath,
+                        fileBase64,
+                    });
+                    form.append("filename", name);
+                    form.append("file", blob, name);
                 }
 
                 return ok(
