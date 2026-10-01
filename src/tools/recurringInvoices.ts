@@ -124,9 +124,9 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_update_recurring_invoice_lines",
         {
-            ...W,
+            ...D,
             description:
-                "Replaces all invoice lines of a recurring invoice (applies to every job). Amounts are in cents.",
+                "Replaces all invoice lines of a recurring invoice (applies to every job). Amounts are in cents. Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 recurringInvoiceId,
                 lines: z.array(draftLine).min(1).describe("New invoice lines (at least one)"),
@@ -147,9 +147,9 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_update_recurring_invoice_frequency",
         {
-            ...W,
+            ...D,
             description:
-                "Updates description, frequency and days-until-due of a recurring invoice (applies to every job)",
+                "Updates description, frequency and days-until-due of a recurring invoice (applies to every job) Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 recurringInvoiceId,
                 description: z.string().max(250).optional().describe("Description (max 250 chars)"),
@@ -209,8 +209,9 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_update_recurring_invoice_job_schedule",
         {
-            ...W,
-            description: "Updates the next date and/or end date of a single job",
+            ...D,
+            description:
+                "Updates the next date and/or end date of a single job. Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 recurringInvoiceId,
                 jobId,
@@ -236,9 +237,9 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_update_recurring_invoice_job_recipients",
         {
-            ...W,
+            ...D,
             description:
-                "Replaces the delivery configuration of a job. Any channel not included is turned off; at least one recipient is required. EHF, eFaktura and SMS are mutually exclusive.",
+                "Replaces the delivery configuration of a job. Any channel not included is turned off; at least one recipient is required. EHF, eFaktura and SMS are mutually exclusive. Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 recurringInvoiceId,
                 jobId,

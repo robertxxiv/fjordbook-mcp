@@ -371,8 +371,9 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_update_purchase_draft",
         {
-            ...W,
-            description: "Updates a purchase draft",
+            ...D,
+            description:
+                "Updates a purchase draft. Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({ draftId: z.number().int(), ...draftSchema.shape }),
         },
         async ({ draftId, ...body }) => {

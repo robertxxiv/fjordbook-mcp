@@ -320,7 +320,11 @@ describe.each(registered.map((t) => [t.name, t] as const))("%s", (_name, tool) =
             if (op) problems.push(...checkPathParamOrder(rec, op, parsed.data));
 
             const a = tool.annotations;
-            if (rec.method === "DELETE" || /\/(delete|settled|writeOff|stop)$/.test(rec.path)) {
+            if (
+                rec.method === "DELETE" ||
+                rec.method === "PUT" ||
+                /\/(delete|settled|writeOff|stop)$/.test(rec.path)
+            ) {
                 if (a.destructiveHint !== true)
                     problems.push("annotation:destructiveHint must be true");
             }

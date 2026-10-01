@@ -108,8 +108,9 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_update_product",
         {
-            ...W,
-            description: "Updates an existing product (full replacement; send all fields)",
+            ...D,
+            description:
+                "Updates an existing product (full replacement; send all fields) Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({ productId, ...productBody }),
         },
         async ({ productId, ...body }) => {
