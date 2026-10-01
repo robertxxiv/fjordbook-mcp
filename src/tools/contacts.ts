@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
 // Factory: a shared instance makes the schema generator emit a $ref for the second use.
 const addressSchema = () =>
@@ -103,16 +114,16 @@ export function register(server: McpServer) {
                     .optional()
                     .describe("false = active contacts, true = inactive"),
                 group: z.string().optional().describe("Exact customer group match"),
-                lastModified: z.string().optional().describe("YYYY-MM-DD"),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedLt: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
-                lastModifiedGt: z.string().optional(),
-                createdDate: z.string().optional().describe("YYYY-MM-DD"),
-                createdDateLe: z.string().optional(),
-                createdDateLt: z.string().optional(),
-                createdDateGe: z.string().optional(),
-                createdDateGt: z.string().optional(),
+                lastModified: dateField().optional().describe("YYYY-MM-DD"),
+                lastModifiedLe: dateField().optional(),
+                lastModifiedLt: dateField().optional(),
+                lastModifiedGe: dateField().optional(),
+                lastModifiedGt: dateField().optional(),
+                createdDate: dateField().optional().describe("YYYY-MM-DD"),
+                createdDateLe: dateField().optional(),
+                createdDateLt: dateField().optional(),
+                createdDateGe: dateField().optional(),
+                createdDateGt: dateField().optional(),
             }),
         },
         async (p) => {

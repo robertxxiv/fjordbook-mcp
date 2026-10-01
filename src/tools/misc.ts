@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 import {
     UPLOAD_ENV_NOTE,
     exactlyOneSource,
@@ -12,7 +23,7 @@ import {
 
 const paging = z.object({ page: pageField, pageSize: pageSizeField });
 
-const dateFilter = (what: string) => z.string().optional().describe(`${what}, format YYYY-MM-DD`);
+const dateFilter = (what: string) => dateField(what).optional();
 
 const { input: inboxDocumentSchema, validated: validatedInboxDocument } = refinedInput(
     z.object({
@@ -38,8 +49,8 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a product sales report for a date range",
             inputSchema: z.object({
-                from: z.string().describe("Start date of the range, inclusive, format YYYY-MM-DD"),
-                to: z.string().describe("End date of the range, inclusive, format YYYY-MM-DD"),
+                from: dateField().describe("Start date of the range, inclusive, format YYYY-MM-DD"),
+                to: dateField().describe("End date of the range, inclusive, format YYYY-MM-DD"),
             }),
         },
         async (body) => {

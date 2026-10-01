@@ -1,7 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
 const accountCodeField = z
     .string()
@@ -63,7 +73,7 @@ export function register(server: McpServer) {
             description:
                 "Retrieves accounts and closing balances for a given date" + PAGINATION_NOTE,
             inputSchema: z.object({
-                date: z.string().describe("Date in YYYY-MM-DD format (required)"),
+                date: dateField().describe("Date in YYYY-MM-DD format (required)"),
                 fromAccount: z.number().int().optional().describe("First account number to return"),
                 toAccount: z.number().int().optional().describe("Last account number to return"),
                 page: pageField,
@@ -86,7 +96,7 @@ export function register(server: McpServer) {
             description: "Retrieves a specific account and its balance for a given date",
             inputSchema: z.object({
                 accountCode: accountCodeField,
-                date: z.string().describe("Date in YYYY-MM-DD format (required)"),
+                date: dateField().describe("Date in YYYY-MM-DD format (required)"),
             }),
         },
         async ({ accountCode, date }) => {
@@ -174,7 +184,7 @@ export function register(server: McpServer) {
             description:
                 "Retrieves bank balances for the company at a given date" + PAGINATION_NOTE,
             inputSchema: z.object({
-                date: z.string().optional().describe("Date in YYYY-MM-DD format"),
+                date: dateField().optional().describe("Date in YYYY-MM-DD format"),
                 page: pageField,
                 pageSize: pageSizeField,
             }),
