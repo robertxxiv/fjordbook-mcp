@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, cp } from "../client.js";
-import { R, ok, err } from "./shared.js";
+import { get, getWithMeta, cp } from "../client.js";
+import { R, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -24,10 +24,11 @@ export function register(server: McpServer) {
         "fiken_list_companies",
         {
             ...R,
-            description: "Returns all companies the authenticated user has access to",
+            description:
+                "Returns all companies the authenticated user has access to" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional().describe("Page number, 0-indexed"),
-                pageSize: z.number().int().optional().describe("Results per page, max 100"),
+                page: pageField,
+                pageSize: pageSizeField,
                 sortBy: z
                     .enum([
                         "createdDate asc",
@@ -43,7 +44,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get("/companies", p));
+                return okList(await getWithMeta("/companies", p));
             } catch (e) {
                 return err(e);
             }

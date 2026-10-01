@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get } from "../../client.js";
+import { get, getWithMeta } from "../../client.js";
 import { register } from "../../tools/user.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const server = createMockServer();
 
 beforeAll(() => {
@@ -49,17 +51,25 @@ describe("fiken_get_user", () => {
 describe("fiken_list_companies", () => {
     it("calls GET /companies with params", async () => {
         const data = [{ slug: "my-co" }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 10, sortBy: "name asc" };
         const result = await server.getHandler("fiken_list_companies")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 500: Server Error"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 500: Server Error"));
         const result = await server.getHandler("fiken_list_companies")({});
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_companies")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 

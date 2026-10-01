@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 const saleLine = z.object({
     description: z.string().describe("Description of the product or service"),
@@ -67,16 +67,10 @@ export function register(server: McpServer) {
         "fiken_list_sales",
         {
             ...R,
-            description: "Returns all sales for the company",
+            description: "Returns all sales for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().min(0).optional().describe("Page number, starts at 0"),
-                pageSize: z
-                    .number()
-                    .int()
-                    .min(1)
-                    .max(100)
-                    .optional()
-                    .describe("Results per page (1-100, default 25)"),
+                page: pageField,
+                pageSize: pageSizeField,
                 date: z.string().optional().describe("Sale date equals, YYYY-MM-DD"),
                 dateLe: z.string().optional().describe("Sale date <=, YYYY-MM-DD"),
                 dateLt: z.string().optional().describe("Sale date <, YYYY-MM-DD"),
@@ -94,7 +88,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/sales"), p));
+                return okList(await getWithMeta(cp("/sales"), p));
             } catch (e) {
                 return err(e);
             }
@@ -202,15 +196,15 @@ export function register(server: McpServer) {
         "fiken_list_sale_drafts",
         {
             ...R,
-            description: "Returns all sale drafts for the company",
+            description: "Returns all sale drafts for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
             }),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/sales/drafts"), p));
+                return okList(await getWithMeta(cp("/sales/drafts"), p));
             } catch (e) {
                 return err(e);
             }

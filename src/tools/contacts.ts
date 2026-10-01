@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 const addressSchema = z
     .object({
@@ -73,10 +73,11 @@ export function register(server: McpServer) {
         "fiken_list_contacts",
         {
             ...R,
-            description: "Retrieves all contacts for the company. Supports many filters.",
+            description:
+                "Retrieves all contacts for the company. Supports many filters." + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 sortBy: z
                     .enum([
                         "lastModified asc",
@@ -114,7 +115,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/contacts"), p));
+                return okList(await getWithMeta(cp("/contacts"), p));
             } catch (e) {
                 return err(e);
             }
@@ -303,15 +304,15 @@ export function register(server: McpServer) {
         "fiken_list_groups",
         {
             ...R,
-            description: "Returns all customer groups for the company",
+            description: "Returns all customer groups for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
             }),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/groups"), p));
+                return okList(await getWithMeta(cp("/groups"), p));
             } catch (e) {
                 return err(e);
             }

@@ -1,14 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 export function register(server: McpServer) {
     server.registerTool(
         "fiken_list_accounts",
         {
             ...R,
-            description: "Retrieves bookkeeping accounts for the current year",
+            description: "Retrieves bookkeeping accounts for the current year" + PAGINATION_NOTE,
             inputSchema: z.object({
                 fromAccount: z.number().int().optional().describe("First account number to return"),
                 toAccount: z.number().int().optional().describe("Last account number to return"),
@@ -18,13 +18,13 @@ export function register(server: McpServer) {
                     .describe(
                         'Comma-separated account numbers or ranges, e.g. "1000-1500, 1580-1999, 2000"',
                     ),
-                page: z.number().int().optional().describe("Page number, 0-indexed"),
-                pageSize: z.number().int().optional().describe("Results per page, max 100"),
+                page: pageField,
+                pageSize: pageSizeField,
             }),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/accounts"), p));
+                return okList(await getWithMeta(cp("/accounts"), p));
             } catch (e) {
                 return err(e);
             }
@@ -53,18 +53,19 @@ export function register(server: McpServer) {
         "fiken_list_account_balances",
         {
             ...R,
-            description: "Retrieves accounts and closing balances for a given date",
+            description:
+                "Retrieves accounts and closing balances for a given date" + PAGINATION_NOTE,
             inputSchema: z.object({
                 date: z.string().describe("Date in YYYY-MM-DD format (required)"),
                 fromAccount: z.number().int().optional().describe("First account number to return"),
                 toAccount: z.number().int().optional().describe("Last account number to return"),
-                page: z.number().int().optional().describe("Page number, 0-indexed"),
-                pageSize: z.number().int().optional().describe("Results per page, max 100"),
+                page: pageField,
+                pageSize: pageSizeField,
             }),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/accountBalances"), p));
+                return okList(await getWithMeta(cp("/accountBalances"), p));
             } catch (e) {
                 return err(e);
             }
@@ -94,10 +95,10 @@ export function register(server: McpServer) {
         "fiken_list_bank_accounts",
         {
             ...R,
-            description: "Retrieves all bank accounts for the company",
+            description: "Retrieves all bank accounts for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 inactive: z
                     .boolean()
                     .optional()
@@ -108,7 +109,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/bankAccounts"), p));
+                return okList(await getWithMeta(cp("/bankAccounts"), p));
             } catch (e) {
                 return err(e);
             }
@@ -163,16 +164,17 @@ export function register(server: McpServer) {
         "fiken_list_bank_balances",
         {
             ...R,
-            description: "Retrieves bank balances for the company at a given date",
+            description:
+                "Retrieves bank balances for the company at a given date" + PAGINATION_NOTE,
             inputSchema: z.object({
                 date: z.string().optional().describe("Date in YYYY-MM-DD format"),
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
             }),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/bankBalances"), p));
+                return okList(await getWithMeta(cp("/bankBalances"), p));
             } catch (e) {
                 return err(e);
             }

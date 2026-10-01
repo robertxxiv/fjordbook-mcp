@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 import { draftSchema, sendSchema } from "./orderConfirmations.js";
 
 const creditNoteLine = z.object({
@@ -31,8 +31,8 @@ const roundingType = z
     );
 
 const pagination = {
-    page: z.number().int().optional().describe("Page number, starting at 0"),
-    pageSize: z.number().int().optional().describe("Results per page (max 100)"),
+    page: pageField,
+    pageSize: pageSizeField,
 };
 
 const draftId = z.number().int().describe("Draft ID");
@@ -42,7 +42,7 @@ export function register(server: McpServer) {
         "fiken_list_credit_notes",
         {
             ...R,
-            description: "Returns all credit notes for the company",
+            description: "Returns all credit notes for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...pagination,
                 issueDate: z.string().optional().describe("Exact issue date, format yyyy-mm-dd"),
@@ -80,7 +80,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/creditNotes"), p));
+                return okList(await getWithMeta(cp("/creditNotes"), p));
             } catch (e) {
                 return err(e);
             }
@@ -210,12 +210,12 @@ export function register(server: McpServer) {
         "fiken_list_credit_note_drafts",
         {
             ...R,
-            description: "Returns all credit note drafts for the company",
+            description: "Returns all credit note drafts for the company" + PAGINATION_NOTE,
             inputSchema: z.object(pagination),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/creditNotes/drafts"), p));
+                return okList(await getWithMeta(cp("/creditNotes/drafts"), p));
             } catch (e) {
                 return err(e);
             }

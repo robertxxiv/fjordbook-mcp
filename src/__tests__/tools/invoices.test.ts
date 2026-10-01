@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/invoices.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -25,24 +27,32 @@ beforeEach(() => {
 describe("fiken_list_invoices", () => {
     it("calls GET /invoices with filters", async () => {
         const data = [{ invoiceId: 1, invoiceNumber: 100 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 25, settled: false, customerId: 42 };
         const result = await server.getHandler("fiken_list_invoices")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/invoices", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/invoices", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_invoices")({});
         expect(result.isError).toBe(true);
     });
 
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue("service unavailable");
+        mockGetWithMeta.mockRejectedValue("service unavailable");
         const result = await server.getHandler("fiken_list_invoices")({});
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: service unavailable");
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_invoices")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -190,17 +200,28 @@ describe("fiken_create_invoice_counter", () => {
 describe("fiken_list_invoice_drafts", () => {
     it("calls GET /invoices/drafts with params", async () => {
         const data = [{ draftId: 1, type: "invoice" }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 10, orderReference: "ORD-001" };
         const result = await server.getHandler("fiken_list_invoice_drafts")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/invoices/drafts", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith(
+            "/companies/test-slug/invoices/drafts",
+            params,
+        );
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_invoice_drafts")({});
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_invoice_drafts")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 

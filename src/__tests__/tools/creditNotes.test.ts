@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/creditNotes.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -25,24 +27,32 @@ beforeEach(() => {
 describe("fiken_list_credit_notes", () => {
     it("calls GET /creditNotes with filters", async () => {
         const data = [{ creditNoteId: 1 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 25, settled: false, customerId: 42 };
         const result = await server.getHandler("fiken_list_credit_notes")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/creditNotes", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/creditNotes", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_credit_notes")({});
         expect(result.isError).toBe(true);
     });
 
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue("rate limited");
+        mockGetWithMeta.mockRejectedValue("rate limited");
         const result = await server.getHandler("fiken_list_credit_notes")({});
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: rate limited");
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_credit_notes")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -183,17 +193,28 @@ describe("fiken_create_credit_note_counter", () => {
 describe("fiken_list_credit_note_drafts", () => {
     it("calls GET /creditNotes/drafts with params", async () => {
         const data = [{ draftId: 1 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 10 };
         const result = await server.getHandler("fiken_list_credit_note_drafts")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/creditNotes/drafts", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith(
+            "/companies/test-slug/creditNotes/drafts",
+            params,
+        );
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_credit_note_drafts")({});
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_credit_note_drafts")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 

@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/contacts.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -25,24 +27,32 @@ beforeEach(() => {
 describe("fiken_list_contacts", () => {
     it("calls GET /contacts with filters", async () => {
         const data = [{ contactId: 1, name: "Acme AS" }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 25, customer: true, supplier: false, name: "Acme" };
         const result = await server.getHandler("fiken_list_contacts")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/contacts", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/contacts", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_contacts")({});
         expect(result.isError).toBe(true);
     });
 
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue("network error");
+        mockGetWithMeta.mockRejectedValue("network error");
         const result = await server.getHandler("fiken_list_contacts")({});
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: network error");
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_contacts")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -232,16 +242,24 @@ describe("fiken_delete_contact_person", () => {
 describe("fiken_list_groups", () => {
     it("calls GET /groups with params", async () => {
         const data = ["Customers A", "VIP"];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 50 };
         const result = await server.getHandler("fiken_list_groups")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/groups", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/groups", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 500: Server Error"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 500: Server Error"));
         const result = await server.getHandler("fiken_list_groups")({});
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_groups")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });

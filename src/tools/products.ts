@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 const date = (what: string) => z.string().optional().describe(`${what}, format YYYY-MM-DD`);
 
@@ -33,10 +33,10 @@ export function register(server: McpServer) {
         "fiken_list_products",
         {
             ...R,
-            description: "Returns all products for the company",
+            description: "Returns all products for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional().describe("Page number, starting at 0"),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 createdDate: date("Created on exactly this date"),
                 createdDateLe: date("Created on or before"),
                 createdDateLt: date("Created before"),
@@ -54,7 +54,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/products"), p));
+                return okList(await getWithMeta(cp("/products"), p));
             } catch (e) {
                 return err(e);
             }
