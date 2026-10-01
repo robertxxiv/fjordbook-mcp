@@ -48,7 +48,7 @@ and stub `fetch`; nothing talks to the real API.
 - `pnpm build` runs `tsc` into `build/`; `bin` points at `build/index.js`.
 - The husky pre-commit hook runs `prettier . --write`; it reformats the working tree after staging,
   so check `git status` after committing.
-- Releases use changesets: `.github/workflows/publish.yml` runs on `master`, runs tests and build, then
+- Releases use changesets: `.github/workflows/publish.yml` runs on `main`, runs tests and build, then
   opens a version PR or publishes to npm.
 
 ## Client behaviour

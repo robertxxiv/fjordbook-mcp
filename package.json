@@ -1,7 +1,7 @@
 {
     "name": "fjordbook-mcp",
-    "version": "1.1.0",
-    "description": "MCP server for the Fiken accounting API",
+    "version": "1.0.0",
+    "description": "MCP server for the Fiken accounting API v2: all 189 operations as tools for Claude, Cursor and other MCP clients",
     "type": "module",
     "main": "build/index.js",
     "bin": {
@@ -30,7 +30,7 @@
         "type": "git",
         "url": "https://github.com/robertxxiv/fjordbook-mcp.git"
     },
-    "homepage": "https://github.com/robertxxiv/fjordbook-mcp",
+    "homepage": "https://github.com/robertxxiv/fjordbook-mcp#readme",
     "bugs": {
         "url": "https://github.com/robertxxiv/fjordbook-mcp/issues"
     },
@@ -56,5 +56,15 @@
     },
     "lint-staged": {
         "*": "prettier --write --ignore-unknown"
-    }
+    },
+    "author": "robertxxiv",
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "fiken",
+        "accounting",
+        "norway",
+        "invoicing",
+        "claude"
+    ]
 }

@@ -5,13 +5,35 @@
 
 A Model Context Protocol (MCP) server that connects AI assistants like **Claude** and **Cursor** to the [Fiken accounting API](https://api.fiken.no/api/v2/docs/). Manage invoices, contacts, purchases, journal entries, and more — directly from your AI assistant.
 
-All mutating operations (POST, PUT, PATCH, DELETE) require explicit user approval before executing.
+Mutating tools are annotated so MCP clients can require your approval before they run (see [Safety](#safety)).
 
-**NOTE**: This is an unofficial library and is not affiliated with or endorsed by Fiken AS. Use at own risk.
+Fjordbook started as a fork of [gronnmann/fiken-mcp](https://github.com/gronnmann/fiken-mcp) and has since been extended and hardened into a separate project (full API coverage, safer client, toolset filtering, live smoke test).
 
-**NOTE**: Built using Claude Code. Use at own risk.
+---
 
-**NOTE**: Fjordbook is a fork of [gronnmann/fiken-mcp](https://github.com/gronnmann/fiken-mcp) (MIT), extended to cover the full Fiken API v2.
+## Quick start
+
+1. Create a personal API token in Fiken (**Profile → API → Personal tokens**) and note your company slug (`fiken.no/company/YOUR-SLUG/...`).
+2. Add the server to your MCP client. Example for Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+    "mcpServers": {
+        "fjordbook": {
+            "command": "npx",
+            "args": ["-y", "fjordbook-mcp"],
+            "env": {
+                "FIKEN_API_TOKEN": "your-personal-token-here",
+                "FIKEN_COMPANY_SLUG": "your-company-slug"
+            }
+        }
+    }
+}
+```
+
+3. Restart the client and ask: _"List my Fiken contacts"_.
+
+Requires Node.js 18.17 or newer. Setup for Claude Code, Cursor, VS Code, Windows and local models, plus troubleshooting, is in the **[installation guide](docs/installation.md)**.
 
 ---
 
@@ -31,91 +53,7 @@ All mutating operations (POST, PUT, PATCH, DELETE) require explicit user approva
 
 ## Configuration
 
-Add the server to your AI client config. No installation needed — `npx`/`pnpx` will fetch it automatically.
-
-### Getting Your Credentials
-
-- **API Token**: [fiken.no](https://fiken.no) → Profile → API → Personal tokens
-- **Company Slug**: Found in your Fiken URL: `fiken.no/company/YOUR-SLUG/...`
-
----
-
-### Claude Desktop
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-    "mcpServers": {
-        "fiken": {
-            "command": "npx",
-            "args": ["-y", "fjordbook-mcp"],
-            "env": {
-                "FIKEN_API_TOKEN": "your-personal-token-here",
-                "FIKEN_COMPANY_SLUG": "your-company-slug"
-            }
-        }
-    }
-}
-```
-
-Or with pnpm:
-
-```json
-{
-    "mcpServers": {
-        "fiken": {
-            "command": "pnpx",
-            "args": ["fjordbook-mcp"],
-            "env": {
-                "FIKEN_API_TOKEN": "your-personal-token-here",
-                "FIKEN_COMPANY_SLUG": "your-company-slug"
-            }
-        }
-    }
-}
-```
-
-### Claude Code
-
-Add to `~/.claude.json` under `mcpServers`:
-
-```json
-{
-    "mcpServers": {
-        "fiken": {
-            "command": "npx",
-            "args": ["-y", "fjordbook-mcp"],
-            "env": {
-                "FIKEN_API_TOKEN": "your-personal-token-here",
-                "FIKEN_COMPANY_SLUG": "your-company-slug"
-            }
-        }
-    }
-}
-```
-
-### Cursor
-
-Add to `~/.cursor/mcp.json`:
-
-```json
-{
-    "mcpServers": {
-        "fiken": {
-            "command": "npx",
-            "args": ["-y", "fjordbook-mcp"],
-            "env": {
-                "FIKEN_API_TOKEN": "your-personal-token-here",
-                "FIKEN_COMPANY_SLUG": "your-company-slug"
-            }
-        }
-    }
-}
-```
-
-### Optional environment variables
+`FIKEN_API_TOKEN` and `FIKEN_COMPANY_SLUG` are required. Optional variables:
 
 | Variable                 | Default    | Purpose                                                               |
 | :----------------------- | :--------- | :-------------------------------------------------------------------- |
@@ -157,49 +95,24 @@ Uploads by path are restricted to regular .pdf/.png/.jpg/.gif files whose conten
 
 ---
 
-## Live smoke test
+---
 
-Opt-in test that spawns `build/index.js` and exercises the real Fiken API: read-only listing of every major resource, then write cycles against the demo company. Run `pnpm build` first, then:
+## Safety
 
-```bash
-FIKEN_SMOKE_CONFIRM=yes pnpm smoke
-```
-
-`FIKEN_API_TOKEN` and `FIKEN_COMPANY_SLUG` are read from the environment, falling back to `.env` in the repo root. It is never run by tests or CI.
-
-| Variable              | Purpose                                                           |
-| :-------------------- | :---------------------------------------------------------------- |
-| `FIKEN_SMOKE_CONFIRM` | Must be `yes`, otherwise the script exits before any network call |
-
-Write cycles (all records are named `fjordbook-mcp-smoke-<timestamp>`):
-
-- Product and contact: create/get/update/delete.
-- Invoice: draft → invoice via `fiken_create_invoice_from_draft` (never sent). Invoices cannot be deleted through the API, so this one stays in the demo company.
-- Credit note: draft only (no credit note issued or sent); draft deleted.
-- Sale: external-invoice sale + payment; payment and sale deleted.
-- Purchase: draft + generated tiny PDF attachment (`fileBase64`); draft deleted.
-- Journal entry: entry + reversing entry. The API has no delete, so the net-zero pair stays.
-
-Safety guards:
-
-- Aborts unless `FIKEN_COMPANY_SLUG` is exactly `fiken-demo-radikal-lys-as`; there is no override.
-- Before any write, `fiken_list_companies` must contain the slug with "demo" or "test" in its name, and every write phase re-checks the slug (and `fiken_get_company`) before writing; otherwise the phase is skipped.
-- Writes only target the configured slug, deletable test records are cleaned up in `finally`, the token is never printed, and `send_invoice`, `send_offer` and `send_credit_note` are never called.
-
-Exit code is 1 if any step fails; a final "Findings" section lists unexpected API behaviour.
-
-## Local Development
-
-```bash
-git clone https://github.com/robertxxiv/fjordbook-mcp.git
-cd fjordbook-mcp
-pnpm install       # Install dependencies
-pnpm build         # Compile TypeScript → build/
-pnpm dev           # Run with tsx (no build needed)
-```
+- Every tool carries MCP annotations: read-only tools are marked `readOnlyHint`, and deletes and full-record replacements (PUT updates) are marked `destructiveHint`, so clients can ask for approval before mutations.
+- `send_invoice`, `send_offer` and `send_credit_note` email real recipients. Review before approving them.
+- The token grants access to every company your Fiken user can reach. Use a dedicated token, pin `FIKEN_COMPANY_SLUG` to one company, and try new workflows on a demo company first.
+- Uploads by path are restricted (see above). Tool inputs are schema-validated: ids cannot traverse to other endpoints, dates must be `YYYY-MM-DD`.
+- This is an unofficial project, not affiliated with or endorsed by Fiken AS, and it was built with the help of Claude Code. Use at your own risk.
 
 ---
 
+## Documentation
+
+- [Installation guide](docs/installation.md): all clients, Windows, local models, troubleshooting
+- [Development](docs/development.md): build, test, live smoke test, release flow
+- [Architecture](docs/architecture.md): modules, conventions, client behaviour, spec conformance
+
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
