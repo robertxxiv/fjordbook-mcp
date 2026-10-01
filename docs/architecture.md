@@ -20,7 +20,8 @@ TypeScript (ESM, `module: Node16`, so relative imports need the `.js` suffix), `
 | `src/__tests__/`      | One test file per module, using `createMockServer()` from `helpers.ts`                             |
 
 Tool modules: user, accounts, contacts, invoices, creditNotes, offers, orderConfirmations,
-journalEntries, transactions, purchases, sales, misc (about 106 tools in total).
+journalEntries, transactions, purchases, sales, misc, recurringInvoices, products, timeTracking,
+attachments. Together they cover every operation in `docs/fiken-openapi.yaml`.
 
 ## Conventions
 
@@ -49,8 +50,20 @@ and stub `fetch`; nothing talks to the real API.
 - Releases use changesets: `.github/workflows/publish.yml` runs on `master`, runs tests and build, then
   opens a version PR or publishes to npm.
 
-## Known gaps
+## Client behaviour
 
-The OpenAPI spec exposes more operations than the tools cover (recurring invoices, products,
-attachments, accruals, payments on purchases/sales, time entries, inbox and others, pending a proper
-audit), and `DELETE /companies/{slug}/sales/{id}` is called by a tool but is not in the spec.
+Fiken allows one concurrent request per token and slows clients above 4 req/s, so `client.ts`:
+
+- serializes every request through one queue, starts spaced at least 250ms apart;
+- times out each request (30s, override with `FIKEN_TIMEOUT_MS`);
+- retries 429/503 (up to 3 times, honouring `Retry-After`); retries network errors and timeouts only for GET;
+- exposes `getWithMeta()`, which returns the `Fiken-Api-*` pagination headers; paginated list tools
+  return `{ items, pagination }` when those headers are present.
+
+## Spec conformance
+
+`src/__tests__/conformance.test.ts` drives every registered tool through the real client with a stubbed
+`fetch` and checks method, path, query params and body keys against `docs/fiken-openapi.yaml`. It also
+requires every spec operation to be reached by a tool and checks the read-only/destructive annotations.
+To update the spec: replace the YAML from `https://api.fiken.no/api/v2/docs/swagger.yaml` and run the tests;
+new operations show up as uncovered.
