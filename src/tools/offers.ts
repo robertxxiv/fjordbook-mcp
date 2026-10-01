@@ -33,7 +33,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific offer by ID",
-            inputSchema: z.object({ offerId: z.string().describe("Offer ID") }),
+            inputSchema: z.object({ offerId: z.number().int().describe("Offer ID") }),
         },
         async ({ offerId }) => {
             try {

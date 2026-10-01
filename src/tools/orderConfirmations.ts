@@ -171,7 +171,9 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific order confirmation by ID",
-            inputSchema: z.object({ confirmationId: z.string().describe("Order confirmation ID") }),
+            inputSchema: z.object({
+                confirmationId: z.number().int().describe("Order confirmation ID"),
+            }),
         },
         async ({ confirmationId }) => {
             try {
@@ -221,7 +223,9 @@ export function register(server: McpServer) {
         {
             ...W,
             description: "Creates an invoice draft from an order confirmation",
-            inputSchema: z.object({ confirmationId: z.string().describe("Order confirmation ID") }),
+            inputSchema: z.object({
+                confirmationId: z.number().int().describe("Order confirmation ID"),
+            }),
         },
         async ({ confirmationId }) => {
             try {
