@@ -1,26 +1,27 @@
-import { readFile } from "node:fs/promises";
-import { basename } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
 import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import { UPLOAD_ENV_NOTE, exactlyOneSource, loadUpload, parseInput } from "./upload.js";
 
 const paging = z.object({ page: pageField, pageSize: pageSizeField });
 
 const dateFilter = (what: string) => z.string().optional().describe(`${what}, format YYYY-MM-DD`);
 
-const inboxDocumentSchema = z.object({
-    name: z.string().optional().describe("Name of the inbox document, usually the filename"),
-    filename: z
-        .string()
-        .optional()
-        .describe(
-            "Filename of the uploaded file. Required with fileBase64; defaults to the basename of filePath",
-        ),
-    description: z.string().optional().describe("Additional description of the inbox document"),
-    filePath: z.string().optional().describe("Local path to the file to upload"),
-    fileBase64: z.string().optional().describe("Base64-encoded file contents"),
-});
+const inboxDocumentSchema = z
+    .object({
+        name: z.string().optional().describe("Name of the inbox document, usually the filename"),
+        filename: z
+            .string()
+            .optional()
+            .describe(
+                "Filename of the uploaded file. Required with fileBase64; defaults to the basename of filePath",
+            ),
+        description: z.string().optional().describe("Additional description of the inbox document"),
+        filePath: z.string().optional().describe("Local path to the file to upload"),
+        fileBase64: z.string().optional().describe("Base64-encoded file contents"),
+    })
+    .superRefine(exactlyOneSource(false));
 
 export function register(server: McpServer) {
     // Products / reports
@@ -78,30 +79,22 @@ export function register(server: McpServer) {
         {
             ...W,
             description:
-                "Uploads a document to the company inbox (multipart). Provide exactly one of filePath or fileBase64.",
+                "Uploads a document (.png, .jpeg, .jpg, .gif or .pdf) to the company inbox (multipart). Provide exactly one of filePath or fileBase64. " +
+                UPLOAD_ENV_NOTE,
             inputSchema: inboxDocumentSchema,
         },
-        async ({ name, filename, description, filePath, fileBase64 }) => {
+        async (raw) => {
             try {
-                if (!filePath && !fileBase64) {
-                    throw new Error("Either filePath or fileBase64 is required");
-                }
-                if (filePath && fileBase64) {
-                    throw new Error("Provide only one of filePath or fileBase64");
-                }
-                if (fileBase64 && !filename) {
-                    throw new Error("filename is required when using fileBase64");
-                }
-                const resolvedFilename = filename ?? basename(filePath!);
-                const bytes =
-                    fileBase64 !== undefined
-                        ? Buffer.from(fileBase64, "base64")
-                        : await readFile(filePath!);
+                const { name, filename, description, filePath, fileBase64 } = parseInput(
+                    inboxDocumentSchema,
+                    raw,
+                );
+                const upload = await loadUpload({ filename, filePath, fileBase64 });
                 const form = new FormData();
-                form.append("filename", resolvedFilename);
-                form.append("name", name ?? resolvedFilename);
+                form.append("filename", upload.filename);
+                form.append("name", name ?? upload.filename);
                 if (description !== undefined) form.append("description", description);
-                form.append("file", new Blob([bytes]), resolvedFilename);
+                form.append("file", upload.blob, upload.filename);
                 return ok(await uploadMultipart(cp("/inbox"), undefined, form));
             } catch (e) {
                 return err(e);

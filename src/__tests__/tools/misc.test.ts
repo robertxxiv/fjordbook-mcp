@@ -29,6 +29,8 @@ beforeEach(() => {
     vi.clearAllMocks();
 });
 
+const PDF_B64 = Buffer.from("%PDF-1").toString("base64");
+
 describe("fiken_create_product_sales_report", () => {
     it("calls POST /products/salesReport with body", async () => {
         const data = [{ productId: 1, totalSold: 5 }];
@@ -163,7 +165,7 @@ describe("fiken_create_inbox_document", () => {
     it("uploads base64 content as multipart", async () => {
         mockUpload.mockResolvedValue({ created: true, location: "x" });
         const result = await server.getHandler(tool)({
-            fileBase64: Buffer.from("hello").toString("base64"),
+            fileBase64: Buffer.from("%PDF-hello").toString("base64"),
             filename: "a.pdf",
             name: "Receipt",
             description: "Lunch",
@@ -178,32 +180,39 @@ describe("fiken_create_inbox_document", () => {
         expect(fd.get("description")).toBe("Lunch");
         const file = fd.get("file") as File;
         expect(file.name).toBe("a.pdf");
-        expect(await file.text()).toBe("hello");
+        expect(file.type).toBe("application/pdf");
+        expect(await file.text()).toBe("%PDF-hello");
     });
 
     it("reads filePath, defaulting filename and name to its basename", async () => {
         const dir = mkdtempSync(join(tmpdir(), "fiken-inbox-"));
         const p = join(dir, "scan.png");
-        writeFileSync(p, "png-bytes");
+        writeFileSync(
+            p,
+            Buffer.concat([
+                Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+                Buffer.from("x"),
+            ]),
+        );
         mockUpload.mockResolvedValue({ created: true });
         await server.getHandler(tool)({ filePath: p });
         const fd = mockUpload.mock.calls[0][2] as FormData;
         expect(fd.get("filename")).toBe("scan.png");
         expect(fd.get("name")).toBe("scan.png");
         expect(fd.has("description")).toBe(false);
-        expect(await (fd.get("file") as File).text()).toBe("png-bytes");
+        expect(await (fd.get("file") as File).text()).toContain("PNG");
     });
 
     it("rejects missing file source", async () => {
         const result = await server.getHandler(tool)({});
         expect(result.isError).toBe(true);
-        expect(result.content[0].text).toBe("Error: Either filePath or fileBase64 is required");
+        expect(result.content[0].text).toBe("Error: Provide exactly one of filePath or fileBase64");
         expect(mockUpload).not.toHaveBeenCalled();
     });
 
     it("rejects both file sources", async () => {
         const result = await server.getHandler(tool)({ filePath: "/x", fileBase64: "eA==" });
-        expect(result.content[0].text).toBe("Error: Provide only one of filePath or fileBase64");
+        expect(result.content[0].text).toContain("Provide exactly one of filePath or fileBase64");
     });
 
     it("requires filename with base64", async () => {
@@ -213,13 +222,13 @@ describe("fiken_create_inbox_document", () => {
 
     it("returns error on upload failure", async () => {
         mockUpload.mockRejectedValue(new Error("Fiken 400: Bad"));
-        const result = await server.getHandler(tool)({ fileBase64: "eA==", filename: "a.pdf" });
+        const result = await server.getHandler(tool)({ fileBase64: PDF_B64, filename: "a.pdf" });
         expect(result.isError).toBe(true);
     });
 
     it("handles non-Error thrown values", async () => {
         mockUpload.mockRejectedValue("boom");
-        const result = await server.getHandler(tool)({ fileBase64: "eA==", filename: "a.pdf" });
+        const result = await server.getHandler(tool)({ fileBase64: PDF_B64, filename: "a.pdf" });
         expect(result.content[0].text).toBe("Error: boom");
     });
 });
