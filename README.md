@@ -152,6 +152,29 @@ Uploads by path are restricted to regular .pdf/.png/.jpg/.gif files whose conten
 
 ---
 
+## Live smoke test
+
+Opt-in test that spawns `build/index.js` and exercises the real Fiken API (read-only listing of every major resource, then a create/get/update/delete cycle for a product and a contact named `fiken-mcp-smoke-<timestamp>`). Run `pnpm build` first, then:
+
+```bash
+FIKEN_SMOKE_CONFIRM=yes pnpm smoke
+```
+
+`FIKEN_API_TOKEN` and `FIKEN_COMPANY_SLUG` are read from the environment, falling back to `.env` in the repo root.
+
+| Variable                 | Purpose                                                                         |
+| :----------------------- | :------------------------------------------------------------------------------ |
+| `FIKEN_SMOKE_CONFIRM`    | Must be `yes`, otherwise the script exits before any network call               |
+| `FIKEN_SMOKE_ALLOW_SLUG` | Must equal `FIKEN_COMPANY_SLUG` to run against any slug other than the demo one |
+
+Safety guards:
+
+- Refuses to run unless the slug is `fiken-demo-radikal-lys-as` or `FIKEN_SMOKE_ALLOW_SLUG` equals it.
+- Before any write, `fiken_list_companies` must contain the slug and its name must contain "demo" or "test" (unless `FIKEN_SMOKE_ALLOW_SLUG` is set); otherwise the write phase is skipped.
+- Writes only target the configured slug, test records are always cleaned up, and the token is never printed.
+
+Exit code is 1 if any step fails; a final "Findings" section lists unexpected API behaviour.
+
 ## Local Development
 
 ```bash
