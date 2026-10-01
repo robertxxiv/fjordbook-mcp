@@ -165,6 +165,7 @@ const NUMBER_CANDIDATES = [1, 2, 10, 100, 1000, 10000, 0.5];
 
 function stringHint(key: string, ctx: SampleContext): string[] {
     if (/filePath/i.test(key)) return [ctx.filePath];
+    if (/uuid/i.test(key)) return ["3f2b8c1e-9d4a-4b6e-8a1f-2c7d5e9b0a13"];
     if (/base64/i.test(key)) return ["JVBERi0xLjQK"];
     if (/filename/i.test(key)) return ["test.pdf"];
     if (/date/i.test(key)) return ["2024-01-15"];

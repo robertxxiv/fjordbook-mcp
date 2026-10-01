@@ -261,7 +261,7 @@ describe.each(registered.map((t) => [t.name, t] as const))("%s", (_name, tool) =
             if (op) problems.push(...checkPathParamOrder(rec, op, parsed.data));
 
             const a = tool.annotations;
-            if (rec.method === "DELETE" || rec.path.endsWith("/delete")) {
+            if (rec.method === "DELETE" || /\/(delete|settled|writeOff|stop)$/.test(rec.path)) {
                 if (a.destructiveHint !== true)
                     problems.push("annotation:destructiveHint must be true");
             }
@@ -298,7 +298,11 @@ describe("hostile ids", () => {
                     ...(base.data as object),
                     [field]: HOSTILE,
                 });
-                if (!hostile.success) continue;
+                if (!hostile.success) {
+                    // blocked by the input schema (uuid/regex/int): the first line of defence
+                    if (baseSegs.includes(value)) tested++;
+                    continue;
+                }
                 // Only fields that end up as a whole path segment are in scope.
                 if (!baseSegs.includes(value)) continue;
                 tested++;
