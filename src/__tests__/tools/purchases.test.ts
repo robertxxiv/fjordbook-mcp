@@ -189,7 +189,7 @@ describe("fiken_add_purchase_attachment", () => {
             created: true,
             location: "/companies/test-slug/purchases/1/attachments/2",
         });
-        const dir = await mkdtemp(join(tmpdir(), "fiken-mcp-"));
+        const dir = await mkdtemp(join(tmpdir(), "fjordbook-mcp-"));
         const filePath = join(dir, "invoice.pdf");
         await writeFile(filePath, Buffer.from("%PDF-1"));
 

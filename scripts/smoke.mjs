@@ -187,7 +187,7 @@ async function createAndResolve(label, createName, args, listName, listArgs) {
 }
 
 async function productCycle(ts) {
-    const name = `fiken-mcp-smoke-${ts}`;
+    const name = `fjordbook-mcp-smoke-${ts}`;
     const body = { name, unitPrice: 1000, incomeAccount: "3000", vatType: "HIGH", active: true };
     let id;
     try {
@@ -245,7 +245,7 @@ async function productCycle(ts) {
 }
 
 async function contactCycle(ts) {
-    const name = `fiken-mcp-smoke-${ts}`;
+    const name = `fjordbook-mcp-smoke-${ts}`;
     const body = { name, customer: true };
     let id;
     try {
@@ -349,7 +349,7 @@ async function cleanup(label, name, args, fallback) {
 
 /** Creates a throwaway customer; the caller cleans it up. */
 async function smokeCustomer(ts, label) {
-    const name = `fiken-mcp-smoke-${ts}-${label}`;
+    const name = `fjordbook-mcp-smoke-${ts}-${label}`;
     const body = { name, customer: true };
     const id = await createAndResolve(
         "create customer",
@@ -378,11 +378,11 @@ const draftBase = (ts, customerId, type, bankAccountNumber) => ({
     daysUntilDueDate: 14,
     customerId,
     issueDate: today(),
-    invoiceText: `fiken-mcp-smoke-${ts}`,
-    lines: [{ ...invoiceLine, description: `fiken-mcp-smoke-${ts}` }],
+    invoiceText: `fjordbook-mcp-smoke-${ts}`,
+    lines: [{ ...invoiceLine, description: `fjordbook-mcp-smoke-${ts}` }],
 });
 
-/** Invoice draft -> invoice (never sent). Invoices cannot be deleted via the API; the record stays, named fiken-mcp-smoke-<ts>. */
+/** Invoice draft -> invoice (never sent). Invoices cannot be deleted via the API; the record stays, named fjordbook-mcp-smoke-<ts>. */
 async function invoiceCycle(ts) {
     if (!(await ensureDemo("invoice"))) return;
     const bank = await bankAccount();
@@ -421,7 +421,7 @@ async function invoiceCycle(ts) {
         record(
             "invoice cleanup",
             "SKIP",
-            `invoices are not deletable; left as fiken-mcp-smoke-${ts} (not sent)`,
+            `invoices are not deletable; left as fjordbook-mcp-smoke-${ts} (not sent)`,
         );
     } finally {
         if (draftId !== undefined)
@@ -473,7 +473,7 @@ async function salePaymentCycle(ts) {
             saleNumber: `smoke-${ts}`,
             lines: [
                 {
-                    description: `fiken-mcp-smoke-${ts}`,
+                    description: `fjordbook-mcp-smoke-${ts}`,
                     vatType: "HIGH",
                     netPrice: 1000,
                     vat: 250,
@@ -499,7 +499,7 @@ async function salePaymentCycle(ts) {
                 await cleanup("payment", "fiken_delete_sale_payment", { saleId, paymentId });
             await cleanup("sale", "fiken_delete_sale", {
                 saleId,
-                description: `fiken-mcp-smoke-${ts} cleanup`,
+                description: `fjordbook-mcp-smoke-${ts} cleanup`,
             });
         }
         await cleanupCustomer();
@@ -522,7 +522,7 @@ async function purchaseDraftCycle(ts) {
                 invoiceNumber: `smoke-${ts}`,
                 lines: [
                     {
-                        text: `fiken-mcp-smoke-${ts}`,
+                        text: `fjordbook-mcp-smoke-${ts}`,
                         vatType: "NONE",
                         incomeAccount: "6540",
                         net: 1000,
@@ -537,8 +537,8 @@ async function purchaseDraftCycle(ts) {
         if (!(await ensureDemo("purchase draft (attach)"))) return;
         await step("attach", "fiken_add_purchase_draft_attachment", {
             draftId,
-            filename: `fiken-mcp-smoke-${ts}.pdf`,
-            fileBase64: tinyPdf(`fiken-mcp-smoke-${ts}`).toString("base64"),
+            filename: `fjordbook-mcp-smoke-${ts}.pdf`,
+            fileBase64: tinyPdf(`fjordbook-mcp-smoke-${ts}`).toString("base64"),
         });
         await step(
             "get attachments",
@@ -554,7 +554,7 @@ async function purchaseDraftCycle(ts) {
     }
 }
 
-/** Journal entry + reversing entry. The API has no delete, so both stay, named fiken-mcp-smoke-<ts>. */
+/** Journal entry + reversing entry. The API has no delete, so both stay, named fjordbook-mcp-smoke-<ts>. */
 async function journalEntryCycle(ts) {
     if (!(await ensureDemo("journal entry"))) return;
     const bank = (await bankAccount())?.accountCode;
@@ -564,7 +564,7 @@ async function journalEntryCycle(ts) {
             { description, date: today(), lines: [{ amount: 100, debitAccount, creditAccount }] },
         ],
     });
-    const name = `fiken-mcp-smoke-${ts}`;
+    const name = `fjordbook-mcp-smoke-${ts}`;
     const r = await step("create", "fiken_create_journal_entry", entry(name, "6800", bank));
     if (!r) return;
     // The Location id is a transaction id, not a journalEntryId: resolve via the list instead.

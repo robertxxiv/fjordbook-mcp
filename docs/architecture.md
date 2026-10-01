@@ -1,8 +1,8 @@
 # Architecture
 
-`fiken-mcp` is an unofficial MCP server for the [Fiken API v2](https://api.fiken.no/api/v2/docs/)
+`fjordbook-mcp` is an unofficial MCP server for the [Fiken API v2](https://api.fiken.no/api/v2/docs/)
 (OpenAPI spec: `https://api.fiken.no/api/v2/docs/swagger.yaml`). It runs over stdio and is
-published to npm as `fiken-mcp`.
+published to npm as `fjordbook-mcp`.
 
 ## Stack
 

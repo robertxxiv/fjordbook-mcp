@@ -8,7 +8,7 @@ import { TOOLSETS, selectToolsets } from "./toolsets.js";
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 
 const server = new McpServer({
-    name: "fiken-mcp",
+    name: "fjordbook-mcp",
     version,
 });
 

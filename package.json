@@ -1,11 +1,11 @@
 {
-    "name": "fiken-mcp",
+    "name": "fjordbook-mcp",
     "version": "1.1.0",
     "description": "MCP server for the Fiken accounting API",
     "type": "module",
     "main": "build/index.js",
     "bin": {
-        "fiken-mcp": "build/index.js"
+        "fjordbook-mcp": "build/index.js"
     },
     "files": [
         "build"
@@ -28,11 +28,11 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/gronnmann/fiken-mcp.git"
+        "url": "https://github.com/robertxxiv/fjordbook-mcp.git"
     },
-    "homepage": "https://github.com/gronnmann/fiken-mcp",
+    "homepage": "https://github.com/robertxxiv/fjordbook-mcp",
     "bugs": {
-        "url": "https://github.com/gronnmann/fiken-mcp/issues"
+        "url": "https://github.com/robertxxiv/fjordbook-mcp/issues"
     },
     "license": "MIT",
     "dependencies": {

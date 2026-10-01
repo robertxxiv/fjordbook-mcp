@@ -1,4 +1,4 @@
-# fiken-mcp
+# fjordbook-mcp
 
 ## 1.1.0
 

@@ -53,7 +53,7 @@ describe("index", () => {
     });
 
     it("creates McpServer with name and version", () => {
-        expect(MockMcpServer).toHaveBeenCalledWith({ name: "fiken-mcp", version });
+        expect(MockMcpServer).toHaveBeenCalledWith({ name: "fjordbook-mcp", version });
     });
 
     it("creates StdioServerTransport", () => {

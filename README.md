@@ -1,7 +1,7 @@
-# fiken-mcp: Model Context Protocol Server for Fiken Accounting API
+# Fjordbook MCP: Model Context Protocol Server for Fiken Accounting API
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![npm version](https://img.shields.io/npm/v/fiken-mcp.svg)](https://www.npmjs.com/package/fiken-mcp)
+[![npm version](https://img.shields.io/npm/v/fjordbook-mcp.svg)](https://www.npmjs.com/package/fjordbook-mcp)
 
 A Model Context Protocol (MCP) server that connects AI assistants like **Claude** and **Cursor** to the [Fiken accounting API](https://api.fiken.no/api/v2/docs/). Manage invoices, contacts, purchases, journal entries, and more — directly from your AI assistant.
 
@@ -10,6 +10,8 @@ All mutating operations (POST, PUT, PATCH, DELETE) require explicit user approva
 **NOTE**: This is an unofficial library and is not affiliated with or endorsed by Fiken AS. Use at own risk.
 
 **NOTE**: Built using Claude Code. Use at own risk.
+
+**NOTE**: Fjordbook is a fork of [gronnmann/fiken-mcp](https://github.com/gronnmann/fiken-mcp) (MIT), extended to cover the full Fiken API v2.
 
 ---
 
@@ -48,7 +50,7 @@ Add the server to your AI client config. No installation needed — `npx`/`pnpx`
     "mcpServers": {
         "fiken": {
             "command": "npx",
-            "args": ["-y", "fiken-mcp"],
+            "args": ["-y", "fjordbook-mcp"],
             "env": {
                 "FIKEN_API_TOKEN": "your-personal-token-here",
                 "FIKEN_COMPANY_SLUG": "your-company-slug"
@@ -65,7 +67,7 @@ Or with pnpm:
     "mcpServers": {
         "fiken": {
             "command": "pnpx",
-            "args": ["fiken-mcp"],
+            "args": ["fjordbook-mcp"],
             "env": {
                 "FIKEN_API_TOKEN": "your-personal-token-here",
                 "FIKEN_COMPANY_SLUG": "your-company-slug"
@@ -84,7 +86,7 @@ Add to `~/.claude.json` under `mcpServers`:
     "mcpServers": {
         "fiken": {
             "command": "npx",
-            "args": ["-y", "fiken-mcp"],
+            "args": ["-y", "fjordbook-mcp"],
             "env": {
                 "FIKEN_API_TOKEN": "your-personal-token-here",
                 "FIKEN_COMPANY_SLUG": "your-company-slug"
@@ -103,7 +105,7 @@ Add to `~/.cursor/mcp.json`:
     "mcpServers": {
         "fiken": {
             "command": "npx",
-            "args": ["-y", "fiken-mcp"],
+            "args": ["-y", "fjordbook-mcp"],
             "env": {
                 "FIKEN_API_TOKEN": "your-personal-token-here",
                 "FIKEN_COMPANY_SLUG": "your-company-slug"
@@ -169,7 +171,7 @@ FIKEN_SMOKE_CONFIRM=yes pnpm smoke
 | :-------------------- | :---------------------------------------------------------------- |
 | `FIKEN_SMOKE_CONFIRM` | Must be `yes`, otherwise the script exits before any network call |
 
-Write cycles (all records are named `fiken-mcp-smoke-<timestamp>`):
+Write cycles (all records are named `fjordbook-mcp-smoke-<timestamp>`):
 
 - Product and contact: create/get/update/delete.
 - Invoice: draft → invoice via `fiken_create_invoice_from_draft` (never sent). Invoices cannot be deleted through the API, so this one stays in the demo company.
@@ -189,8 +191,8 @@ Exit code is 1 if any step fails; a final "Findings" section lists unexpected AP
 ## Local Development
 
 ```bash
-git clone https://github.com/gronnmann/fiken-mcp.git
-cd fiken-mcp
+git clone https://github.com/robertxxiv/fjordbook-mcp.git
+cd fjordbook-mcp
 pnpm install       # Install dependencies
 pnpm build         # Compile TypeScript → build/
 pnpm dev           # Run with tsx (no build needed)

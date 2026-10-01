@@ -1,5 +1,5 @@
 ---
-"fiken-mcp": minor
+"fjordbook-mcp": minor
 ---
 
 Full Fiken API v2 coverage and a more reliable client.
