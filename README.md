@@ -157,24 +157,32 @@ Uploads by path are restricted to regular .pdf/.png/.jpg/.gif files whose conten
 
 ## Live smoke test
 
-Opt-in test that spawns `build/index.js` and exercises the real Fiken API (read-only listing of every major resource, then a create/get/update/delete cycle for a product and a contact named `fiken-mcp-smoke-<timestamp>`). Run `pnpm build` first, then:
+Opt-in test that spawns `build/index.js` and exercises the real Fiken API: read-only listing of every major resource, then write cycles against the demo company. Run `pnpm build` first, then:
 
 ```bash
 FIKEN_SMOKE_CONFIRM=yes pnpm smoke
 ```
 
-`FIKEN_API_TOKEN` and `FIKEN_COMPANY_SLUG` are read from the environment, falling back to `.env` in the repo root.
+`FIKEN_API_TOKEN` and `FIKEN_COMPANY_SLUG` are read from the environment, falling back to `.env` in the repo root. It is never run by tests or CI.
 
-| Variable                 | Purpose                                                                         |
-| :----------------------- | :------------------------------------------------------------------------------ |
-| `FIKEN_SMOKE_CONFIRM`    | Must be `yes`, otherwise the script exits before any network call               |
-| `FIKEN_SMOKE_ALLOW_SLUG` | Must equal `FIKEN_COMPANY_SLUG` to run against any slug other than the demo one |
+| Variable              | Purpose                                                           |
+| :-------------------- | :---------------------------------------------------------------- |
+| `FIKEN_SMOKE_CONFIRM` | Must be `yes`, otherwise the script exits before any network call |
+
+Write cycles (all records are named `fiken-mcp-smoke-<timestamp>`):
+
+- Product and contact: create/get/update/delete.
+- Invoice: draft → invoice via `fiken_create_invoice_from_draft` (never sent). Invoices cannot be deleted through the API, so this one stays in the demo company.
+- Credit note: draft only (no credit note issued or sent); draft deleted.
+- Sale: external-invoice sale + payment; payment and sale deleted.
+- Purchase: draft + generated tiny PDF attachment (`fileBase64`); draft deleted.
+- Journal entry: entry + reversing entry. The API has no delete, so the net-zero pair stays.
 
 Safety guards:
 
-- Refuses to run unless the slug is `fiken-demo-radikal-lys-as` or `FIKEN_SMOKE_ALLOW_SLUG` equals it.
-- Before any write, `fiken_list_companies` must contain the slug and its name must contain "demo" or "test" (unless `FIKEN_SMOKE_ALLOW_SLUG` is set); otherwise the write phase is skipped.
-- Writes only target the configured slug, test records are always cleaned up, and the token is never printed.
+- Aborts unless `FIKEN_COMPANY_SLUG` is exactly `fiken-demo-radikal-lys-as`; there is no override.
+- Before any write, `fiken_list_companies` must contain the slug with "demo" or "test" in its name, and every write phase re-checks the slug (and `fiken_get_company`) before writing; otherwise the phase is skipped.
+- Writes only target the configured slug, deletable test records are cleaned up in `finally`, the token is never printed, and `send_invoice`, `send_offer` and `send_credit_note` are never called.
 
 Exit code is 1 if any step fails; a final "Findings" section lists unexpected API behaviour.
 
