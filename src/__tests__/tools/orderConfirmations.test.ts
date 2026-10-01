@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/orderConfirmations.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -25,24 +27,35 @@ beforeEach(() => {
 describe("fiken_list_order_confirmations", () => {
     it("calls GET /orderConfirmations with params", async () => {
         const data = [{ confirmationId: 1 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 10 };
         const result = await server.getHandler("fiken_list_order_confirmations")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/orderConfirmations", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith(
+            "/companies/test-slug/orderConfirmations",
+            params,
+        );
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_order_confirmations")({});
         expect(result.isError).toBe(true);
     });
 
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue("connection refused");
+        mockGetWithMeta.mockRejectedValue("connection refused");
         const result = await server.getHandler("fiken_list_order_confirmations")({});
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: connection refused");
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_order_confirmations")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -145,20 +158,23 @@ const draftBody = {
 describe("fiken_list_order_confirmation_drafts", () => {
     it("calls GET /orderConfirmations/drafts with params", async () => {
         const data = [{ draftId: 1 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const result = await server.getHandler("fiken_list_order_confirmation_drafts")({
             page: 1,
             pageSize: 5,
         });
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/orderConfirmations/drafts", {
-            page: 1,
-            pageSize: 5,
-        });
+        expect(mockGetWithMeta).toHaveBeenCalledWith(
+            "/companies/test-slug/orderConfirmations/drafts",
+            {
+                page: 1,
+                pageSize: 5,
+            },
+        );
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 404: Not Found"));
         const result = await server.getHandler("fiken_list_order_confirmation_drafts")({
             page: 1,
             pageSize: 5,
@@ -167,13 +183,21 @@ describe("fiken_list_order_confirmation_drafts", () => {
     });
 
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue("connection refused");
+        mockGetWithMeta.mockRejectedValue("connection refused");
         const result = await server.getHandler("fiken_list_order_confirmation_drafts")({
             page: 1,
             pageSize: 5,
         });
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: connection refused");
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_order_confirmation_drafts")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 

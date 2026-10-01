@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 const invoiceLine = z.object({
     net: z.number().int().optional().describe("Net amount in cents"),
@@ -104,10 +104,10 @@ export function register(server: McpServer) {
         "fiken_list_invoices",
         {
             ...R,
-            description: "Returns all invoices for the company",
+            description: "Returns all invoices for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 issueDate: z.string().optional().describe("YYYY-MM-DD"),
                 issueDateLe: z.string().optional(),
                 issueDateLt: z.string().optional(),
@@ -135,7 +135,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/invoices"), p));
+                return okList(await getWithMeta(cp("/invoices"), p));
             } catch (e) {
                 return err(e);
             }
@@ -305,17 +305,17 @@ export function register(server: McpServer) {
         "fiken_list_invoice_drafts",
         {
             ...R,
-            description: "Returns all invoice drafts for the company",
+            description: "Returns all invoice drafts for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 orderReference: z.string().optional(),
                 uuid: z.string().optional(),
             }),
         },
         async (p) => {
             try {
-                return ok(await get(cp("/invoices/drafts"), p));
+                return okList(await getWithMeta(cp("/invoices/drafts"), p));
             } catch (e) {
                 return err(e);
             }

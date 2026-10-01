@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/timeTracking.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -70,24 +72,37 @@ const getCases: Array<[string, Record<string, unknown>, string, boolean]> = [
 ];
 
 describe.each(getCases)("%s", (tool, args, path, passesParams) => {
+    const mock = passesParams ? mockGetWithMeta : mockGet;
+    const resolved = (value: unknown) =>
+        passesParams ? { data: value, pagination: undefined } : value;
     it("calls GET with the exact path and params", async () => {
-        mockGet.mockResolvedValue(data);
+        mock.mockResolvedValue(resolved(data) as never);
         const result = await server.getHandler(tool)(args);
-        if (passesParams) expect(mockGet).toHaveBeenCalledWith(PREFIX + path, args);
-        else expect(mockGet).toHaveBeenCalledWith(PREFIX + path);
+        if (passesParams) expect(mock).toHaveBeenCalledWith(PREFIX + path, args);
+        else expect(mock).toHaveBeenCalledWith(PREFIX + path);
         expect(result.content[0].text).toBe(json);
     });
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
+        mock.mockRejectedValue(new Error("Fiken 404: Not Found"));
         const result = await server.getHandler(tool)(args);
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: Fiken 404: Not Found");
     });
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue({ code: 500 });
+        mock.mockRejectedValue({ code: 500 });
         const result = await server.getHandler(tool)(args);
         expect(result.content[0].text).toBe("Error: [object Object]");
     });
+    if (passesParams) {
+        it("wraps items with pagination when present", async () => {
+            const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+            mockGetWithMeta.mockResolvedValue({ data, pagination });
+            const result = await server.getHandler(tool)(args);
+            expect(result.content[0].text).toBe(
+                JSON.stringify({ items: data, pagination }, null, 2),
+            );
+        });
+    }
 });
 
 // [tool, method, args, path, id key stripped from body]

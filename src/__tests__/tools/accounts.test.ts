@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/accounts.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -25,7 +27,7 @@ beforeEach(() => {
 describe("fiken_list_accounts", () => {
     it("calls GET /accounts with params", async () => {
         const data = [{ code: "1920", name: "Bank" }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = {
             fromAccount: 1000,
             toAccount: 9999,
@@ -34,22 +36,30 @@ describe("fiken_list_accounts", () => {
             range: "1000-1500, 2000",
         };
         const result = await server.getHandler("fiken_list_accounts")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/accounts", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/accounts", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 403: Forbidden"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 403: Forbidden"));
         const result = await server.getHandler("fiken_list_accounts")({});
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain("Fiken 403: Forbidden");
     });
 
     it("handles non-Error thrown values", async () => {
-        mockGet.mockRejectedValue("timeout");
+        mockGetWithMeta.mockRejectedValue("timeout");
         const result = await server.getHandler("fiken_list_accounts")({});
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toBe("Error: timeout");
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_accounts")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -72,7 +82,7 @@ describe("fiken_get_account", () => {
 describe("fiken_list_account_balances", () => {
     it("calls GET /accountBalances with params", async () => {
         const data = [{ account: { code: "1920" }, balance: 100000 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = {
             date: "2024-12-31",
             fromAccount: 1000,
@@ -81,16 +91,27 @@ describe("fiken_list_account_balances", () => {
             pageSize: 25,
         };
         const result = await server.getHandler("fiken_list_account_balances")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/accountBalances", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith(
+            "/companies/test-slug/accountBalances",
+            params,
+        );
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 500: Server Error"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 500: Server Error"));
         const result = await server.getHandler("fiken_list_account_balances")({
             date: "2024-01-01",
         });
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_account_balances")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -121,17 +142,25 @@ describe("fiken_get_account_balance", () => {
 describe("fiken_list_bank_accounts", () => {
     it("calls GET /bankAccounts with params", async () => {
         const data = [{ bankAccountId: 1, name: "Main Account" }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 10, inactive: false };
         const result = await server.getHandler("fiken_list_bank_accounts")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/bankAccounts", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/bankAccounts", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 401: Unauthorized"));
         const result = await server.getHandler("fiken_list_bank_accounts")({});
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_bank_accounts")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });
 
@@ -177,16 +206,24 @@ describe("fiken_get_bank_account", () => {
 describe("fiken_list_bank_balances", () => {
     it("calls GET /bankBalances with params", async () => {
         const data = [{ bankAccount: { bankAccountId: 1 }, balance: 250000 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { date: "2024-12-31", page: 0, pageSize: 10 };
         const result = await server.getHandler("fiken_list_bank_balances")(params);
-        expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/bankBalances", params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith("/companies/test-slug/bankBalances", params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
-        mockGet.mockRejectedValue(new Error("Fiken 500: Server Error"));
+        mockGetWithMeta.mockRejectedValue(new Error("Fiken 500: Server Error"));
         const result = await server.getHandler("fiken_list_bank_balances")({});
         expect(result.isError).toBe(true);
+    });
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_bank_balances")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
     });
 });

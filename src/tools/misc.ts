@@ -2,13 +2,10 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp, uploadMultipart } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
-const paging = z.object({
-    page: z.number().int().optional().describe("Page number, 0-indexed"),
-    pageSize: z.number().int().optional().describe("Results per page, max 100"),
-});
+const paging = z.object({ page: pageField, pageSize: pageSizeField });
 
 const dateFilter = (what: string) => z.string().optional().describe(`${what}, format YYYY-MM-DD`);
 
@@ -51,7 +48,7 @@ export function register(server: McpServer) {
         "fiken_list_inbox",
         {
             ...R,
-            description: "Returns incoming documents in the company inbox",
+            description: "Returns incoming documents in the company inbox" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...paging.shape,
                 sortBy: z
@@ -69,7 +66,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/inbox"), p));
+                return okList(await getWithMeta(cp("/inbox"), p));
             } catch (e) {
                 return err(e);
             }
@@ -149,7 +146,7 @@ export function register(server: McpServer) {
         "fiken_list_ehf_documents",
         {
             ...R,
-            description: "Returns received EHF (electronic invoice) documents",
+            description: "Returns received EHF (electronic invoice) documents" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...paging.shape,
                 sortBy: z
@@ -173,7 +170,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/ehf"), p));
+                return okList(await getWithMeta(cp("/ehf"), p));
             } catch (e) {
                 return err(e);
             }

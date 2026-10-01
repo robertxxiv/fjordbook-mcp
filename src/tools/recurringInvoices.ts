@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 import { draftLine, frequency } from "./invoices.js";
 
 const recurringInvoiceId = z
@@ -25,10 +25,10 @@ export function register(server: McpServer) {
         "fiken_list_recurring_invoices",
         {
             ...R,
-            description: "Returns all recurring invoices for the company",
+            description: "Returns all recurring invoices for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional().describe("Page number, starting at 0"),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 customerId: z
                     .number()
                     .int()
@@ -42,7 +42,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/recurringInvoices"), p));
+                return okList(await getWithMeta(cp("/recurringInvoices"), p));
             } catch (e) {
                 return err(e);
             }

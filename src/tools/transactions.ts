@@ -1,17 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 export function register(server: McpServer) {
     server.registerTool(
         "fiken_list_transactions",
         {
             ...R,
-            description: "Returns all transactions for the company",
+            description: "Returns all transactions for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional().describe("Page number, 0-indexed"),
-                pageSize: z.number().int().optional().describe("Results per page, max 100"),
+                page: pageField,
+                pageSize: pageSizeField,
                 lastModified: z.string().optional().describe("Last modified on, format YYYY-MM-DD"),
                 lastModifiedLe: z
                     .string()
@@ -50,7 +50,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/transactions"), p));
+                return okList(await getWithMeta(cp("/transactions"), p));
             } catch (e) {
                 return err(e);
             }

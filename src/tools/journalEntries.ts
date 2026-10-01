@@ -1,17 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
 export function register(server: McpServer) {
     server.registerTool(
         "fiken_list_journal_entries",
         {
             ...R,
-            description: "Returns all general journal entries for the company",
+            description: "Returns all general journal entries for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
-                page: z.number().int().optional(),
-                pageSize: z.number().int().optional(),
+                page: pageField,
+                pageSize: pageSizeField,
                 date: z.string().optional().describe("Date equal to, format YYYY-MM-DD"),
                 dateLe: z.string().optional().describe("Date on or before, format YYYY-MM-DD"),
                 dateLt: z.string().optional().describe("Date strictly before, format YYYY-MM-DD"),
@@ -55,7 +55,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/journalEntries"), p));
+                return okList(await getWithMeta(cp("/journalEntries"), p));
             } catch (e) {
                 return err(e);
             }

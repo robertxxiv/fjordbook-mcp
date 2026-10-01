@@ -1,12 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { get, mutate, cp } from "../client.js";
-import { R, W, D, ok, err } from "./shared.js";
+import { get, getWithMeta, mutate, cp } from "../client.js";
+import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
-const paging = z.object({
-    page: z.number().int().optional().describe("Page number, 0-indexed"),
-    pageSize: z.number().int().optional().describe("Results per page, max 100"),
-});
+const paging = z.object({ page: pageField, pageSize: pageSizeField });
 
 const date = (what: string) => z.string().describe(`${what}, format YYYY-MM-DD`);
 
@@ -58,7 +55,7 @@ export function register(server: McpServer) {
         "fiken_list_projects",
         {
             ...R,
-            description: "Returns all projects for the company",
+            description: "Returns all projects for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...paging.shape,
                 completed: z.boolean().optional().describe("Filter on completed / not completed"),
@@ -68,7 +65,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/projects"), p));
+                return okList(await getWithMeta(cp("/projects"), p));
             } catch (e) {
                 return err(e);
             }
@@ -152,7 +149,7 @@ export function register(server: McpServer) {
         "fiken_list_activities",
         {
             ...R,
-            description: "Returns all activity types for the company",
+            description: "Returns all activity types for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...paging.shape,
                 name: z.string().optional().describe("Filter by name (partial match)"),
@@ -161,7 +158,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/activities"), p));
+                return okList(await getWithMeta(cp("/activities"), p));
             } catch (e) {
                 return err(e);
             }
@@ -241,7 +238,7 @@ export function register(server: McpServer) {
         "fiken_list_time_entries",
         {
             ...R,
-            description: "Returns time entries for the company",
+            description: "Returns time entries for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...paging.shape,
                 date: date("Exact date").optional(),
@@ -263,7 +260,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/timeEntries"), p));
+                return okList(await getWithMeta(cp("/timeEntries"), p));
             } catch (e) {
                 return err(e);
             }
@@ -406,7 +403,7 @@ export function register(server: McpServer) {
         "fiken_list_time_users",
         {
             ...R,
-            description: "Returns all time-tracking users for the company",
+            description: "Returns all time-tracking users for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...paging.shape,
                 name: z.string().optional().describe("Filter by name (partial match)"),
@@ -415,7 +412,7 @@ export function register(server: McpServer) {
         },
         async (p) => {
             try {
-                return ok(await get(cp("/timeUsers"), p));
+                return okList(await getWithMeta(cp("/timeUsers"), p));
             } catch (e) {
                 return err(e);
             }

@@ -2,16 +2,18 @@ import { vi, describe, it, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("../../client.js", () => ({
     get: vi.fn(),
+    getWithMeta: vi.fn(),
     mutate: vi.fn(),
     cp: vi.fn((path: string) => `/companies/test-slug${path}`),
     slug: vi.fn(() => "test-slug"),
 }));
 
-import { get, mutate } from "../../client.js";
+import { get, getWithMeta, mutate } from "../../client.js";
 import { register } from "../../tools/recurringInvoices.js";
 import { createMockServer } from "../helpers.js";
 
 const mockGet = vi.mocked(get);
+const mockGetWithMeta = vi.mocked(getWithMeta);
 const mockMutate = vi.mocked(mutate);
 const server = createMockServer();
 
@@ -26,7 +28,11 @@ const base = "/companies/test-slug/recurringInvoices";
 const lines = [{ description: "Hosting", unitPrice: 10000, vatType: "HIGH", quantity: 1 }];
 const frequency = { interval: 1, intervalUnit: "MONTH" };
 
-function errorTests(tool: string, mock: typeof mockGet | typeof mockMutate, params: unknown) {
+function errorTests(
+    tool: string,
+    mock: typeof mockGetWithMeta | typeof mockMutate,
+    params: unknown,
+) {
     it("returns error on failure", async () => {
         mock.mockRejectedValue(new Error("Fiken 400: Bad Request"));
         const result = await server.getHandler(tool)(params);
@@ -45,13 +51,22 @@ function errorTests(tool: string, mock: typeof mockGet | typeof mockMutate, para
 describe("fiken_list_recurring_invoices", () => {
     it("calls GET /recurringInvoices with filters", async () => {
         const data = [{ recurringInvoiceId: 1 }];
-        mockGet.mockResolvedValue(data);
+        mockGetWithMeta.mockResolvedValue({ data: data, pagination: undefined });
         const params = { page: 0, pageSize: 10, customerId: 4, active: true };
         const result = await server.getHandler("fiken_list_recurring_invoices")(params);
-        expect(mockGet).toHaveBeenCalledWith(base, params);
+        expect(mockGetWithMeta).toHaveBeenCalledWith(base, params);
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
-    errorTests("fiken_list_recurring_invoices", mockGet, {});
+    errorTests("fiken_list_recurring_invoices", mockGetWithMeta, {});
+
+    it("wraps items with pagination when present", async () => {
+        const pagination = { page: 1, pageSize: 25, pageCount: 3, resultCount: 60 };
+        mockGetWithMeta.mockResolvedValue({ data: [{ id: 1 }], pagination });
+        const result = await server.getHandler("fiken_list_recurring_invoices")({});
+        expect(result.content[0].text).toBe(
+            JSON.stringify({ items: [{ id: 1 }], pagination }, null, 2),
+        );
+    });
 });
 
 describe("fiken_create_recurring_invoice", () => {
