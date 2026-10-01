@@ -65,7 +65,7 @@ describe("index", () => {
         expect(mockConnect).toHaveBeenCalledWith(MockStdioTransport.mock.results[0].value);
     });
 
-    it("registers all 16 tool modules", () => {
+    it("registers all 16 tool modules when FIKEN_TOOLSETS is unset", () => {
         const serverInstance = MockMcpServer.mock.results[0].value;
         expect(registerUser).toHaveBeenCalledWith(serverInstance);
         expect(registerAccounts).toHaveBeenCalledWith(serverInstance);

@@ -118,8 +118,11 @@ Add to `~/.cursor/mcp.json`:
 | Variable                 | Default    | Purpose                                                               |
 | :----------------------- | :--------- | :-------------------------------------------------------------------- |
 | `FIKEN_TIMEOUT_MS`       | `30000`    | Per-request timeout                                                   |
+| `FIKEN_TOOLSETS`         | all        | Comma-separated toolsets to expose (see below); `user` is always on   |
 | `FIKEN_UPLOAD_ROOT`      | unset      | If set, attachment uploads by file path must be inside this directory |
 | `FIKEN_MAX_UPLOAD_BYTES` | `26214400` | Maximum attachment size (25 MB)                                       |
+
+All 189 tools take roughly 47k tokens of context, too much for small local models. Set `FIKEN_TOOLSETS` to expose a subset, e.g. `FIKEN_TOOLSETS=contacts,products` (19 tools including `user`). Valid names: `user`, `accounts`, `contacts`, `invoices`, `creditNotes`, `offers`, `orderConfirmations`, `journalEntries`, `transactions`, `purchases`, `sales`, `misc`, `recurringInvoices`, `products`, `timeTracking`, `attachments`. Unknown names abort startup with an error.
 
 Uploads by path are restricted to regular .pdf/.png/.jpg/.gif files whose content matches the extension; hidden directories (`~/.ssh`, `~/.aws`, ...) and system directories are refused unless `FIKEN_UPLOAD_ROOT` allows them.
 

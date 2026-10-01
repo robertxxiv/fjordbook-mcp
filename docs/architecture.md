@@ -11,13 +11,14 @@ TypeScript (ESM, `module: Node16`, so relative imports need the `.js` suffix), `
 
 ## Layout
 
-| Path                  | Role                                                                                               |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/index.ts`        | Creates the `McpServer` (version read from `package.json`), registers every module, connects stdio |
-| `src/client.ts`       | The only HTTP layer: `get`, `mutate`, `uploadMultipart`, `cp()` (company-scoped path), `slug()`    |
-| `src/tools/<area>.ts` | One module per API area, each exporting `register(server)`                                         |
-| `src/tools/shared.ts` | Annotation constants `R`/`W`/`D` and the `ok()`/`err()` result helpers                             |
-| `src/__tests__/`      | One test file per module, using `createMockServer()` from `helpers.ts`                             |
+| Path                  | Role                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.ts`        | Creates the `McpServer` (version read from `package.json`), registers the toolsets chosen by `FIKEN_TOOLSETS` (default all), connects stdio |
+| `src/toolsets.ts`     | Toolset name -> register map and `selectToolsets()` (env parsing, `user` always on, unknown names throw)                                    |
+| `src/client.ts`       | The only HTTP layer: `get`, `mutate`, `uploadMultipart`, `cp()` (company-scoped path), `slug()`                                             |
+| `src/tools/<area>.ts` | One module per API area, each exporting `register(server)`                                                                                  |
+| `src/tools/shared.ts` | Annotation constants `R`/`W`/`D` and the `ok()`/`err()` result helpers                                                                      |
+| `src/__tests__/`      | One test file per module, using `createMockServer()` from `helpers.ts`                                                                      |
 
 Tool modules: user, accounts, contacts, invoices, creditNotes, offers, orderConfirmations,
 journalEntries, transactions, purchases, sales, misc, recurringInvoices, products, timeTracking,
