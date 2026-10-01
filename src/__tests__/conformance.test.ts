@@ -279,6 +279,14 @@ describe("advertised input schemas (tools/list)", () => {
             if (JSON.stringify(props) !== JSON.stringify(keys)) {
                 problems.push(`${t.name}: advertised [${props}] but schema has [${keys}]`);
             }
+            const advertisedProps = (t.inputSchema.properties ?? {}) as Record<
+                string,
+                { type?: string; pattern?: string; description?: string }
+            >;
+            for (const [k, v] of Object.entries(advertisedProps)) {
+                if (v.description?.includes("YYYY-MM-DD") && v.type === "string" && !v.pattern)
+                    problems.push(`${t.name}: ${k} is a date but advertises no pattern`);
+            }
             const required = Object.keys(shape)
                 .filter((k) => !shape[k].isOptional())
                 .sort();

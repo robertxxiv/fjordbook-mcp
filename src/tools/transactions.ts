@@ -1,7 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -12,38 +22,32 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: pageField,
                 pageSize: pageSizeField,
-                lastModified: z.string().optional().describe("Last modified on, format YYYY-MM-DD"),
-                lastModifiedLe: z
-                    .string()
+                lastModified: dateField()
+                    .optional()
+                    .describe("Last modified on, format YYYY-MM-DD"),
+                lastModifiedLe: dateField()
                     .optional()
                     .describe("Last modified on or before, format YYYY-MM-DD"),
-                lastModifiedLt: z
-                    .string()
+                lastModifiedLt: dateField()
                     .optional()
                     .describe("Last modified strictly before, format YYYY-MM-DD"),
-                lastModifiedGe: z
-                    .string()
+                lastModifiedGe: dateField()
                     .optional()
                     .describe("Last modified on or after, format YYYY-MM-DD"),
-                lastModifiedGt: z
-                    .string()
+                lastModifiedGt: dateField()
                     .optional()
                     .describe("Last modified strictly after, format YYYY-MM-DD"),
-                createdDate: z.string().optional().describe("Created on, format YYYY-MM-DD"),
-                createdDateLe: z
-                    .string()
+                createdDate: dateField().optional().describe("Created on, format YYYY-MM-DD"),
+                createdDateLe: dateField()
                     .optional()
                     .describe("Created on or before, format YYYY-MM-DD"),
-                createdDateLt: z
-                    .string()
+                createdDateLt: dateField()
                     .optional()
                     .describe("Created strictly before, format YYYY-MM-DD"),
-                createdDateGe: z
-                    .string()
+                createdDateGe: dateField()
                     .optional()
                     .describe("Created on or after, format YYYY-MM-DD"),
-                createdDateGt: z
-                    .string()
+                createdDateGt: dateField()
                     .optional()
                     .describe("Created strictly after, format YYYY-MM-DD"),
             }),

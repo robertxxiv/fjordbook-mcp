@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 import {
     UPLOAD_ENV_NOTE,
     exactlyOneSource,
@@ -29,7 +40,7 @@ const purchaseLine = z.object({
 });
 
 const paymentSchema = z.object({
-    date: z.string().describe("Payment date YYYY-MM-DD"),
+    date: dateField().describe("Payment date YYYY-MM-DD"),
     account: z.string().describe('Payment account, e.g. "1920:10001"'),
     amount: z.number().int().describe("Amount paid in cents"),
     amountInNok: z
@@ -50,7 +61,7 @@ const accrualSchema = z.object({
         .describe(
             "The sale/purchase line (lineId) to accrue; must be on a result account (3000-7999)",
         ),
-    startDate: z.string().describe("First period (month) of the accrual, YYYY-MM-DD"),
+    startDate: dateField().describe("First period (month) of the accrual, YYYY-MM-DD"),
     periods: z.number().int().min(1).max(120).describe("Number of monthly periods (1-120)"),
     account: z
         .string()
@@ -69,8 +80,8 @@ const draftLine = z.object({
 });
 
 const draftSchema = z.object({
-    invoiceIssueDate: z.string().optional().describe("YYYY-MM-DD"),
-    dueDate: z.string().optional().describe("YYYY-MM-DD"),
+    invoiceIssueDate: dateField().optional().describe("YYYY-MM-DD"),
+    dueDate: dateField().optional().describe("YYYY-MM-DD"),
     invoiceNumber: z.string().optional(),
     contactId: z.number().int().optional().describe("Contact ID"),
     projectId: z.number().int().optional(),
@@ -132,26 +143,26 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: pageField,
                 pageSize: pageSizeField,
-                date: z.string().optional().describe("Purchase date equals, YYYY-MM-DD"),
-                dateLe: z.string().optional().describe("Purchase date <=, YYYY-MM-DD"),
-                dateLt: z.string().optional().describe("Purchase date <, YYYY-MM-DD"),
-                dateGe: z.string().optional().describe("Purchase date >=, YYYY-MM-DD"),
-                dateGt: z.string().optional().describe("Purchase date >, YYYY-MM-DD"),
-                lastModified: z.string().optional().describe("Last modified equals, YYYY-MM-DD"),
-                lastModifiedLe: z.string().optional().describe("Last modified <=, YYYY-MM-DD"),
-                lastModifiedLt: z.string().optional().describe("Last modified <, YYYY-MM-DD"),
-                lastModifiedGe: z.string().optional().describe("Last modified >=, YYYY-MM-DD"),
-                lastModifiedGt: z.string().optional().describe("Last modified >, YYYY-MM-DD"),
+                date: dateField().optional().describe("Purchase date equals, YYYY-MM-DD"),
+                dateLe: dateField().optional().describe("Purchase date <=, YYYY-MM-DD"),
+                dateLt: dateField().optional().describe("Purchase date <, YYYY-MM-DD"),
+                dateGe: dateField().optional().describe("Purchase date >=, YYYY-MM-DD"),
+                dateGt: dateField().optional().describe("Purchase date >, YYYY-MM-DD"),
+                lastModified: dateField().optional().describe("Last modified equals, YYYY-MM-DD"),
+                lastModifiedLe: dateField().optional().describe("Last modified <=, YYYY-MM-DD"),
+                lastModifiedLt: dateField().optional().describe("Last modified <, YYYY-MM-DD"),
+                lastModifiedGe: dateField().optional().describe("Last modified >=, YYYY-MM-DD"),
+                lastModifiedGt: dateField().optional().describe("Last modified >, YYYY-MM-DD"),
                 sortBy: z
                     .enum(["date asc", "date desc"])
                     .optional()
                     .describe('Sort order: "date asc" (default) or "date desc"'),
                 paid: z.boolean().optional().describe("Filter on whether the purchase is paid"),
-                settledDate: z.string().optional().describe("Settled date equals, YYYY-MM-DD"),
-                settledDateLe: z.string().optional().describe("Settled date <=, YYYY-MM-DD"),
-                settledDateLt: z.string().optional().describe("Settled date <, YYYY-MM-DD"),
-                settledDateGe: z.string().optional().describe("Settled date >=, YYYY-MM-DD"),
-                settledDateGt: z.string().optional().describe("Settled date >, YYYY-MM-DD"),
+                settledDate: dateField().optional().describe("Settled date equals, YYYY-MM-DD"),
+                settledDateLe: dateField().optional().describe("Settled date <=, YYYY-MM-DD"),
+                settledDateLt: dateField().optional().describe("Settled date <, YYYY-MM-DD"),
+                settledDateGe: dateField().optional().describe("Settled date >=, YYYY-MM-DD"),
+                settledDateGt: dateField().optional().describe("Settled date >, YYYY-MM-DD"),
                 contactId: z.number().int().optional().describe("Supplier contact ID"),
             }),
         },
@@ -172,8 +183,8 @@ export function register(server: McpServer) {
                 "Creates a new purchase. Amounts in NOK øre. Fiken enforces account/VAT combinations: the account must exist in the chart of accounts (e.g. 7350 accepts only vatType NONE), and cash purchases (paid immediately) require paymentDate equal to date.",
             inputSchema: z.object({
                 identifier: z.string().optional().describe("Invoice/sale number or similar"),
-                date: z.string().describe("Purchase date YYYY-MM-DD"),
-                dueDate: z.string().optional().describe("Due date YYYY-MM-DD"),
+                date: dateField().describe("Purchase date YYYY-MM-DD"),
+                dueDate: dateField().optional().describe("Due date YYYY-MM-DD"),
                 kind: z
                     .enum(["cash_purchase", "supplier"])
                     .describe("Purchased with cash or through a supplier"),
@@ -184,7 +195,7 @@ export function register(server: McpServer) {
                     .string()
                     .optional()
                     .describe('Payment account, e.g. "1920:10001"'),
-                paymentDate: z.string().optional().describe("Payment date YYYY-MM-DD"),
+                paymentDate: dateField().optional().describe("Payment date YYYY-MM-DD"),
                 paymentAmountInNok: z
                     .number()
                     .int()

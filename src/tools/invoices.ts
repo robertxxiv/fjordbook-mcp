@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
 const invoiceLine = z.object({
     net: z.number().int().optional().describe("Net amount in cents"),
@@ -71,7 +82,7 @@ const draftSchema = z.object({
         ])
         .describe("Type of draft"),
     uuid: z.string().optional(),
-    issueDate: z.string().optional().describe("YYYY-MM-DD"),
+    issueDate: dateField().optional().describe("YYYY-MM-DD"),
     daysUntilDueDate: z.number().int(),
     invoiceText: z.string().optional(),
     yourReference: z.string().optional(),
@@ -91,12 +102,10 @@ const draftSchema = z.object({
     contactPersonId: z.number().int().optional(),
     projectId: z.number().int().optional(),
     roundingType,
-    startDate: z
-        .string()
+    startDate: dateField()
         .optional()
         .describe("YYYY-MM-DD. First issue date; required only when type is repeating_invoice"),
-    endDate: z
-        .string()
+    endDate: dateField()
         .optional()
         .describe("YYYY-MM-DD. Optional last date; only for type repeating_invoice"),
     frequency: frequency.optional().describe("Only for type repeating_invoice"),
@@ -111,21 +120,21 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: pageField,
                 pageSize: pageSizeField,
-                issueDate: z.string().optional().describe("YYYY-MM-DD"),
-                issueDateLe: z.string().optional(),
-                issueDateLt: z.string().optional(),
-                issueDateGe: z.string().optional(),
-                issueDateGt: z.string().optional(),
-                lastModified: z.string().optional(),
-                lastModifiedLe: z.string().optional(),
-                lastModifiedLt: z.string().optional(),
-                lastModifiedGe: z.string().optional(),
-                lastModifiedGt: z.string().optional(),
-                dueDate: z.string().optional().describe("YYYY-MM-DD"),
-                dueDateLe: z.string().optional().describe("YYYY-MM-DD"),
-                dueDateLt: z.string().optional().describe("YYYY-MM-DD"),
-                dueDateGe: z.string().optional().describe("YYYY-MM-DD"),
-                dueDateGt: z.string().optional().describe("YYYY-MM-DD"),
+                issueDate: dateField().optional().describe("YYYY-MM-DD"),
+                issueDateLe: dateField().optional(),
+                issueDateLt: dateField().optional(),
+                issueDateGe: dateField().optional(),
+                issueDateGt: dateField().optional(),
+                lastModified: dateField().optional(),
+                lastModifiedLe: dateField().optional(),
+                lastModifiedLt: dateField().optional(),
+                lastModifiedGe: dateField().optional(),
+                lastModifiedGt: dateField().optional(),
+                dueDate: dateField().optional().describe("YYYY-MM-DD"),
+                dueDateLe: dateField().optional().describe("YYYY-MM-DD"),
+                dueDateLt: dateField().optional().describe("YYYY-MM-DD"),
+                dueDateGe: dateField().optional().describe("YYYY-MM-DD"),
+                dueDateGt: dateField().optional().describe("YYYY-MM-DD"),
                 customerId: z.number().int().optional(),
                 settled: z.boolean().optional(),
                 orderReference: z.string().optional(),
@@ -153,8 +162,8 @@ export function register(server: McpServer) {
                 "Creates a new invoice. Amounts are in NOK øre (cents). Each line's incomeAccount must exist in the chart of accounts and match its vatType (e.g. 3000 accepts only HIGH, 3100 only EXEMPT, 3200 only OUTSIDE).",
             inputSchema: z.object({
                 uuid: z.string().optional(),
-                issueDate: z.string().describe("Issue date YYYY-MM-DD (required)"),
-                dueDate: z.string().describe("Due date YYYY-MM-DD"),
+                issueDate: dateField().describe("Issue date YYYY-MM-DD (required)"),
+                dueDate: dateField().describe("Due date YYYY-MM-DD"),
                 lines: z.array(invoiceLine).min(1).describe("Invoice line items (at least one)"),
                 customerId: z.number().int().describe("Contact ID of the customer"),
                 bankAccountCode: z.string().describe("Bank account code, format 1920:XXXXX"),
@@ -211,7 +220,7 @@ export function register(server: McpServer) {
             description: "Updates an invoice (due date and/or manual send status)",
             inputSchema: z.object({
                 invoiceId: z.number().int(),
-                newDueDate: z.string().optional().describe("New due date YYYY-MM-DD"),
+                newDueDate: dateField().optional().describe("New due date YYYY-MM-DD"),
                 sentManually: z.boolean().optional().describe("Mark invoice as manually sent"),
             }),
         },

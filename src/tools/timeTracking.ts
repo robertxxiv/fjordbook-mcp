@@ -1,11 +1,22 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
 const paging = z.object({ page: pageField, pageSize: pageSizeField });
 
-const date = (what: string) => z.string().describe(`${what}, format YYYY-MM-DD`);
+const date = (what: string) => dateField(what);
 
 const activityFields = {
     name: z.string().describe("Name of the activity (must be unique within the company)"),

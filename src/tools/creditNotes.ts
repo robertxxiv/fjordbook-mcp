@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 import { draftSchema, sendSchema } from "./orderConfirmations.js";
 
 const creditNoteLine = z.object({
@@ -45,29 +56,24 @@ export function register(server: McpServer) {
             description: "Returns all credit notes for the company" + PAGINATION_NOTE,
             inputSchema: z.object({
                 ...pagination,
-                issueDate: z.string().optional().describe("Exact issue date, format yyyy-mm-dd"),
-                issueDateLe: z.string().optional().describe("Issue date <=, format yyyy-mm-dd"),
-                issueDateLt: z.string().optional().describe("Issue date <, format yyyy-mm-dd"),
-                issueDateGe: z.string().optional().describe("Issue date >=, format yyyy-mm-dd"),
-                issueDateGt: z.string().optional().describe("Issue date >, format yyyy-mm-dd"),
-                lastModified: z
-                    .string()
+                issueDate: dateField().optional().describe("Exact issue date, format yyyy-mm-dd"),
+                issueDateLe: dateField().optional().describe("Issue date <=, format yyyy-mm-dd"),
+                issueDateLt: dateField().optional().describe("Issue date <, format yyyy-mm-dd"),
+                issueDateGe: dateField().optional().describe("Issue date >=, format yyyy-mm-dd"),
+                issueDateGt: dateField().optional().describe("Issue date >, format yyyy-mm-dd"),
+                lastModified: dateField()
                     .optional()
                     .describe("Exact last-modified date, format yyyy-mm-dd"),
-                lastModifiedLe: z
-                    .string()
+                lastModifiedLe: dateField()
                     .optional()
                     .describe("Last modified <=, format yyyy-mm-dd"),
-                lastModifiedLt: z
-                    .string()
+                lastModifiedLt: dateField()
                     .optional()
                     .describe("Last modified <, format yyyy-mm-dd"),
-                lastModifiedGe: z
-                    .string()
+                lastModifiedGe: dateField()
                     .optional()
                     .describe("Last modified >=, format yyyy-mm-dd"),
-                lastModifiedGt: z
-                    .string()
+                lastModifiedGt: dateField()
                     .optional()
                     .describe("Last modified >, format yyyy-mm-dd"),
                 customerId: z.number().int().optional().describe("Filter by customer ID"),
@@ -109,7 +115,7 @@ export function register(server: McpServer) {
             ...W,
             description: "Creates a credit note covering the full amount of an invoice",
             inputSchema: z.object({
-                issueDate: z.string().describe("Issue date YYYY-MM-DD"),
+                issueDate: dateField().describe("Issue date YYYY-MM-DD"),
                 invoiceId: z.number().int().describe("ID of the invoice to credit"),
                 creditNoteText: z.string().optional(),
             }),
@@ -135,7 +141,7 @@ export function register(server: McpServer) {
                 orderReference: z.string().optional(),
                 project: z.number().int().optional(),
                 currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
-                issueDate: z.string().describe("Issue date YYYY-MM-DD"),
+                issueDate: dateField().describe("Issue date YYYY-MM-DD"),
                 invoiceId: z.number().int().optional().describe("ID of the invoice to credit"),
                 contactId: z.number().int().optional(),
                 contactPersonId: z.number().int().optional(),

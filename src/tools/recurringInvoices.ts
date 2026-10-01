@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 import { draftLine, frequency } from "./invoices.js";
 
 const recurringInvoiceId = z
@@ -12,7 +23,7 @@ const jobId = z
     .number()
     .int()
     .describe("Job ID: a single customer's recurrence within the recurring invoice");
-const ymd = (what: string) => z.string().describe(`${what}, format YYYY-MM-DD`);
+const ymd = (what: string) => dateField(what);
 const roundingType = z
     .enum(["none", "round_half", "round_whole", "round_down_half", "round_down_whole"])
     .optional()

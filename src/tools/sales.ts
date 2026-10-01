@@ -1,7 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
 const saleLine = z.object({
     description: z.string().describe("Description of the product or service"),
@@ -30,7 +41,7 @@ const saleLine = z.object({
 });
 
 const paymentSchema = z.object({
-    date: z.string().describe("Payment date YYYY-MM-DD"),
+    date: dateField().describe("Payment date YYYY-MM-DD"),
     account: z.string().describe('Payment account, e.g. "1920:10001"'),
     amount: z.number().int().describe("Amount paid in cents (øre): 500000 = 5000.00 NOK"),
     amountInNok: z
@@ -49,7 +60,7 @@ const accrualSchema = z.object({
         .describe(
             "The sale/purchase line (lineId) to accrue; must be on a result account (3000-7999)",
         ),
-    startDate: z.string().describe("First period (month) of the accrual, YYYY-MM-DD"),
+    startDate: dateField().describe("First period (month) of the accrual, YYYY-MM-DD"),
     periods: z.number().int().min(1).max(120).describe("Number of monthly periods (1-120)"),
     account: z
         .string()
@@ -68,8 +79,8 @@ const draftLine = z.object({
 });
 
 const draftSchema = z.object({
-    invoiceIssueDate: z.string().optional().describe("YYYY-MM-DD"),
-    dueDate: z.string().optional().describe("YYYY-MM-DD"),
+    invoiceIssueDate: dateField().optional().describe("YYYY-MM-DD"),
+    dueDate: dateField().optional().describe("YYYY-MM-DD"),
     invoiceNumber: z.string().optional(),
     contactId: z.number().int().optional().describe("Contact ID"),
     projectId: z.number().int().optional(),
@@ -90,16 +101,16 @@ export function register(server: McpServer) {
             inputSchema: z.object({
                 page: pageField,
                 pageSize: pageSizeField,
-                date: z.string().optional().describe("Sale date equals, YYYY-MM-DD"),
-                dateLe: z.string().optional().describe("Sale date <=, YYYY-MM-DD"),
-                dateLt: z.string().optional().describe("Sale date <, YYYY-MM-DD"),
-                dateGe: z.string().optional().describe("Sale date >=, YYYY-MM-DD"),
-                dateGt: z.string().optional().describe("Sale date >, YYYY-MM-DD"),
-                lastModified: z.string().optional().describe("Last modified equals, YYYY-MM-DD"),
-                lastModifiedLe: z.string().optional().describe("Last modified <=, YYYY-MM-DD"),
-                lastModifiedLt: z.string().optional().describe("Last modified <, YYYY-MM-DD"),
-                lastModifiedGe: z.string().optional().describe("Last modified >=, YYYY-MM-DD"),
-                lastModifiedGt: z.string().optional().describe("Last modified >, YYYY-MM-DD"),
+                date: dateField().optional().describe("Sale date equals, YYYY-MM-DD"),
+                dateLe: dateField().optional().describe("Sale date <=, YYYY-MM-DD"),
+                dateLt: dateField().optional().describe("Sale date <, YYYY-MM-DD"),
+                dateGe: dateField().optional().describe("Sale date >=, YYYY-MM-DD"),
+                dateGt: dateField().optional().describe("Sale date >, YYYY-MM-DD"),
+                lastModified: dateField().optional().describe("Last modified equals, YYYY-MM-DD"),
+                lastModifiedLe: dateField().optional().describe("Last modified <=, YYYY-MM-DD"),
+                lastModifiedLt: dateField().optional().describe("Last modified <, YYYY-MM-DD"),
+                lastModifiedGe: dateField().optional().describe("Last modified >=, YYYY-MM-DD"),
+                lastModifiedGt: dateField().optional().describe("Last modified >, YYYY-MM-DD"),
                 contactId: z.number().int().optional().describe("Customer contact ID"),
                 settled: z.boolean().optional().describe("Filter on whether the sale is settled"),
                 saleNumber: z.string().optional().describe("Filter on sale number"),
@@ -121,7 +132,7 @@ export function register(server: McpServer) {
             description:
                 "Creates a new sale. Amounts in NOK øre. Fiken enforces account/VAT combinations: the account must exist in the chart of accounts (e.g. 3000 accepts only vatType HIGH, 3100 only EXEMPT, 3200 only OUTSIDE), and cash sales (kind cash_sale) require paymentDate equal to date.",
             inputSchema: z.object({
-                date: z.string().describe("Sale date YYYY-MM-DD"),
+                date: dateField().describe("Sale date YYYY-MM-DD"),
                 kind: z
                     .enum(["cash_sale", "invoice", "external_invoice"])
                     .describe("Kind of sale: cash_sale, invoice or external_invoice"),
@@ -138,9 +149,9 @@ export function register(server: McpServer) {
                 currency: z.string().describe('ISO 4217, e.g. "NOK"'),
                 saleNumber: z.string().optional(),
                 customerId: z.number().int().optional().describe("Customer contact ID"),
-                dueDate: z.string().optional().describe("YYYY-MM-DD"),
+                dueDate: dateField().optional().describe("YYYY-MM-DD"),
                 kid: z.string().optional().describe("Norwegian KID number"),
-                paymentDate: z.string().optional().describe("Payment date YYYY-MM-DD"),
+                paymentDate: dateField().optional().describe("Payment date YYYY-MM-DD"),
                 paymentFee: z
                     .number()
                     .int()
@@ -343,7 +354,7 @@ export function register(server: McpServer) {
                 'Marks a sale as settled without payment ("sett til oppgjort uten betaling"). Send a new settledDate to change the settlement date',
             inputSchema: z.object({
                 saleId: z.number().int(),
-                settledDate: z.string().describe("Settlement date YYYY-MM-DD"),
+                settledDate: dateField().describe("Settlement date YYYY-MM-DD"),
             }),
         },
         async ({ saleId, settledDate }) => {
@@ -378,7 +389,9 @@ export function register(server: McpServer) {
                     .describe(
                         "Reason: OVERDUE_6_MONTHS (6+ months past due and 3+ reminders sent), COLLECTION_FAILED (debt collection unsuccessful), CUSTOMER_BANKRUPTCY, DEEMED_IRRECOVERABLE (overall assessment)",
                     ),
-                date: z.string().describe("Write-off date YYYY-MM-DD, must be after the sale date"),
+                date: dateField().describe(
+                    "Write-off date YYYY-MM-DD, must be after the sale date",
+                ),
                 comment: z.string().max(200).optional().describe("Optional comment, max 200 chars"),
             }),
         },

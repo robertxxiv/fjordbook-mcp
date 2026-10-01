@@ -39,3 +39,17 @@ export const pageSizeField = z
 export function okList({ data, pagination }: { data: unknown; pagination: unknown }) {
     return ok(pagination === undefined ? data : { items: data, pagination });
 }
+
+const isRealDate = (s: string) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
+};
+
+/** A YYYY-MM-DD calendar date. Callers add .optional() as needed. */
+export function dateField(what = "Date") {
+    return z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected date in YYYY-MM-DD format")
+        .refine(isRealDate, "Not a real calendar date")
+        .describe(`${what}, format YYYY-MM-DD`);
+}

@@ -1,9 +1,20 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
-import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
+import {
+    R,
+    W,
+    D,
+    ok,
+    okList,
+    err,
+    pageField,
+    pageSizeField,
+    PAGINATION_NOTE,
+    dateField,
+} from "./shared.js";
 
-const date = (what: string) => z.string().describe(`${what}, format yyyy-mm-dd`);
+const date = (what: string) => dateField(what);
 
 // Request body shared by the invoice-ish draft endpoints (order confirmation, offer,
 // credit note drafts). Also imported by offers.ts and creditNotes.ts.
