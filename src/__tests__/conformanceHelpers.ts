@@ -140,6 +140,15 @@ export function matchOperation(
 export interface SampleContext {
     /** Path of a real (tiny) PDF file for filePath-style inputs */
     filePath: string;
+    /** When set, id-like fields get distinct values (seq.n increments per field) */
+    seq?: { n: number };
+}
+
+const isIdKey = (key: string) => /id$/i.test(key);
+
+/** Distinct candidate for id-like fields so swapped path parameters are detectable. */
+function uniqueId(key: string, ctx: SampleContext): string[] {
+    return ctx.seq && isIdKey(key) ? [String(7000 + ++ctx.seq.n)] : [];
 }
 
 const STRING_CANDIDATES = [
@@ -167,7 +176,11 @@ export function sample(schema: z.ZodTypeAny, key: string, ctx: SampleContext): u
     const def = schema._def as Json;
     switch (def.typeName) {
         case "ZodString": {
-            for (const c of [...stringHint(key, ctx), ...STRING_CANDIDATES]) {
+            for (const c of [
+                ...stringHint(key, ctx),
+                ...uniqueId(key, ctx),
+                ...STRING_CANDIDATES,
+            ]) {
                 if (schema.safeParse(c).success) return c;
             }
             // pad to satisfy min-length style constraints
@@ -176,7 +189,9 @@ export function sample(schema: z.ZodTypeAny, key: string, ctx: SampleContext): u
         }
         case "ZodNumber":
         case "ZodBigInt": {
-            for (const c of NUMBER_CANDIDATES) if (schema.safeParse(c).success) return c;
+            const unique = uniqueId(key, ctx).map(Number);
+            for (const c of [...unique, ...NUMBER_CANDIDATES])
+                if (schema.safeParse(c).success) return c;
             return 1;
         }
         case "ZodBoolean":
@@ -225,4 +240,25 @@ export function sample(schema: z.ZodTypeAny, key: string, ctx: SampleContext): u
 /** Unwrap optional/default/nullable/effects so required-ness can be judged. */
 export function isRequired(schema: z.ZodTypeAny): boolean {
     return !schema.isOptional();
+}
+
+/** Names of top-level string-typed fields of an object schema. */
+export function stringFields(schema: z.ZodTypeAny): string[] {
+    const unwrap = (s: z.ZodTypeAny): z.ZodTypeAny => {
+        const def = s._def as Json;
+        switch (def.typeName) {
+            case "ZodOptional":
+            case "ZodNullable":
+            case "ZodDefault":
+                return unwrap(def.innerType);
+            case "ZodEffects":
+                return unwrap(def.schema);
+            default:
+                return s;
+        }
+    };
+    const shape = (unwrap(schema) as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+    return Object.entries(shape ?? {})
+        .filter(([, v]) => (unwrap(v)._def as Json).typeName === "ZodString")
+        .map(([k]) => k);
 }

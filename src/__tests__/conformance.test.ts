@@ -21,7 +21,13 @@ import { register as registerRecurringInvoices } from "../tools/recurringInvoice
 import { register as registerProducts } from "../tools/products.js";
 import { register as registerTimeTracking } from "../tools/timeTracking.js";
 import { register as registerAttachments } from "../tools/attachments.js";
-import { loadSpec, matchOperation, sample, type Operation } from "./conformanceHelpers.js";
+import {
+    loadSpec,
+    matchOperation,
+    sample,
+    stringFields,
+    type Operation,
+} from "./conformanceHelpers.js";
 
 /**
  * Spec-conformance test: runs every registered tool through the REAL client with a stubbed
@@ -156,6 +162,39 @@ function isKnown(tool: string, problem: string): boolean {
     return (KNOWN_DEFECTS[tool] ?? []).some((p) => problem.startsWith(p));
 }
 
+/** Parse a valid sample input (distinct id values) for a tool. */
+function sampleInput(tool: Tool) {
+    const input = sample(tool.schema, "", { filePath, seq: { n: 0 } }) as Record<string, unknown>;
+    // filePath and fileBase64 are mutually exclusive alternatives: exercise filePath.
+    if ("filePath" in input && "fileBase64" in input) delete input.fileBase64;
+    // Some tools demand exactly one of file / ehf / inbox document: fall back to the file.
+    if (!tool.schema.safeParse(input).success) {
+        delete input.fileBase64;
+        delete input.ehfDocumentId;
+        delete input.inboxDocumentId;
+    }
+    return tool.schema.safeParse(input);
+}
+
+/** Each {param} in the spec path must carry the same-named input field's value (no swaps). */
+function checkPathParamOrder(rec: Recorded, op: Operation, data: unknown): string[] {
+    const problems: string[] = [];
+    const input = (data ?? {}) as Record<string, unknown>;
+    const tsegs = op.template.split("/");
+    const segs = rec.path.split("/");
+    tsegs.forEach((t, i) => {
+        if (!t.startsWith("{")) return;
+        const name = t.slice(1, -1);
+        if (name === "companySlug" || !(name in input)) return;
+        if (decodeURIComponent(segs[i]) !== String(input[name])) {
+            problems.push(
+                `path-order:${name} in ${op.template} is "${segs[i]}", expected input value "${String(input[name])}"`,
+            );
+        }
+    });
+    return problems;
+}
+
 function checkRequest(tool: Tool, rec: Recorded, op: Operation | undefined): string[] {
     const problems: string[] = [];
     if (!op) {
@@ -206,16 +245,7 @@ describe.each(registered.map((t) => [t.name, t] as const))("%s", (_name, tool) =
     it("calls a documented Fiken operation correctly", async () => {
         _resetForTests();
         recorded = [];
-        const input = sample(tool.schema, "", { filePath }) as Record<string, unknown>;
-        // filePath and fileBase64 are mutually exclusive alternatives: exercise filePath.
-        if ("filePath" in input && "fileBase64" in input) delete input.fileBase64;
-        // Some tools demand exactly one of file / ehf / inbox document: fall back to the file.
-        if (!tool.schema.safeParse(input).success) {
-            delete input.fileBase64;
-            delete input.ehfDocumentId;
-            delete input.inboxDocumentId;
-        }
-        const parsed = tool.schema.safeParse(input);
+        const parsed = sampleInput(tool);
         expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
 
         const result = await tool.handler(parsed.data);
@@ -228,6 +258,7 @@ describe.each(registered.map((t) => [t.name, t] as const))("%s", (_name, tool) =
             const op = matchOperation(spec, rec.method, rec.path);
             if (op) called.set(op.key, [...(called.get(op.key) ?? []), tool.name]);
             problems.push(...checkRequest(tool, rec, op));
+            if (op) problems.push(...checkPathParamOrder(rec, op, parsed.data));
 
             const a = tool.annotations;
             if (rec.method === "DELETE" || rec.path.endsWith("/delete")) {
@@ -242,6 +273,49 @@ describe.each(registered.map((t) => [t.name, t] as const))("%s", (_name, tool) =
             }
         }
         expect(problems.filter((p) => !isKnown(tool.name, p))).toEqual([]);
+    });
+});
+
+describe("hostile ids", () => {
+    const HOSTILE = "../../../x";
+    let tested = 0;
+
+    describe.each(registered.map((t) => [t.name, t] as const))("%s", (_name, tool) => {
+        it("never lets a traversal id escape its operation", async () => {
+            const base = sampleInput(tool);
+            if (!base.success) return;
+            _resetForTests();
+            recorded = [];
+            await tool.handler(base.data);
+            const baseRec = recorded[0];
+            const baseOp = matchOperation(spec, baseRec.method, baseRec.path);
+            const baseSegs = baseRec.path.split("/");
+
+            for (const field of stringFields(tool.schema)) {
+                const value = (base.data as Record<string, unknown>)[field];
+                if (typeof value !== "string") continue;
+                const hostile = tool.schema.safeParse({
+                    ...(base.data as object),
+                    [field]: HOSTILE,
+                });
+                if (!hostile.success) continue;
+                // Only fields that end up as a whole path segment are in scope.
+                if (!baseSegs.includes(value)) continue;
+                tested++;
+                _resetForTests();
+                recorded = [];
+                const result = await tool.handler(hostile.data);
+                expect(result.isError, `${tool.name}.${field}`).toBe(true);
+                for (const rec of recorded) {
+                    expect(matchOperation(spec, rec.method, rec.path)?.key).toBe(baseOp?.key);
+                }
+                expect(recorded, `${tool.name}.${field}`).toEqual([]);
+            }
+        });
+    });
+
+    it("exercised a meaningful number of path-bound string fields", () => {
+        expect(tested).toBeGreaterThan(10);
     });
 });
 

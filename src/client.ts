@@ -19,8 +19,41 @@ export function cp(path: string): string {
 
 type Params = Record<string, string | number | boolean | undefined | null>;
 
+const BASE_URL = new URL(BASE);
+
+/** Percent-decode until stable (bounded), keeping the raw text if it is malformed. */
+function safeDecode(seg: string): string {
+    let cur = seg;
+    for (let i = 0; i < 3; i++) {
+        let next: string;
+        try {
+            next = decodeURIComponent(cur);
+        } catch {
+            return cur;
+        }
+        if (next === cur) break;
+        cur = next;
+    }
+    return cur;
+}
+
+/** Reject path segments that could escape the intended endpoint (dot-segments, slashes, ...). */
+function assertSafePath(path: string): void {
+    for (const raw of path.split("?")[0].split("/")) {
+        const seg = safeDecode(raw);
+        // eslint-disable-next-line no-control-regex
+        if (seg === "." || seg === ".." || /[\\/\u0000-\u001f\u007f]/.test(seg)) {
+            throw new Error(`Invalid path segment ${JSON.stringify(raw)} in ${path}`);
+        }
+    }
+}
+
 function buildUrl(path: string, params?: Params): URL {
+    assertSafePath(path);
     const url = new URL(`${BASE}${path}`);
+    if (url.origin !== BASE_URL.origin || !url.pathname.startsWith(`${BASE_URL.pathname}/`)) {
+        throw new Error(`Invalid path ${JSON.stringify(path)}: resolves outside the Fiken API`);
+    }
     if (params) {
         for (const [k, v] of Object.entries(params)) {
             if (v != null) url.searchParams.set(k, String(v));
@@ -31,6 +64,9 @@ function buildUrl(path: string, params?: Params): URL {
 
 const MIN_GAP_MS = 250;
 const MAX_RETRIES = 3;
+const MAX_NETWORK_RETRIES = 2;
+const MAX_TOTAL_MS = 90_000;
+const MAX_ERROR_BODY = 2000;
 const BACKOFF_MS = 500;
 const MAX_DELAY_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -85,10 +121,18 @@ async function httpError(r: Response): Promise<Error> {
         r.status === 401 || r.status === 403
             ? " (authentication failed: check that FIKEN_API_TOKEN is valid and has access)"
             : "";
-    return new Error(`Fiken ${r.status}: ${await r.text()}${hint}`);
+    let body = await r.text();
+    if (body.length > MAX_ERROR_BODY) body = `${body.slice(0, MAX_ERROR_BODY)} ...[truncated]`;
+    return new Error(`Fiken ${r.status}: ${body}${hint}`);
 }
 
-/** Queue a request, then run `handle` on the response while still holding the slot. */
+const isTimeout = (e: unknown) => e instanceof Error && e.name === "TimeoutError";
+
+/**
+ * Queue a request, then run `handle` on the response while still holding the slot.
+ * Timeouts are never retried (they would hold the queue); GET network errors retry at most
+ * MAX_NETWORK_RETRIES times, 429 any method, 503 GET only; total retry time is capped.
+ */
 function send<T>(
     method: string,
     path: string,
@@ -98,36 +142,46 @@ function send<T>(
 ): Promise<T> {
     const ms = timeoutMs();
     const isGet = method === "GET";
-    const attemptOnce = async (attempt: number): Promise<T> => {
+    const timedOut = () => new Error(`Fiken request timed out after ${ms}ms: ${method} ${path}`);
+    const attemptOnce = async (attempt: number, started: number): Promise<T> => {
         await pace();
+        const mayRetry = (delay: number) => Date.now() - started + delay <= MAX_TOTAL_MS;
         let r: Response;
         try {
             r = await fetch(url, { ...init, method, signal: AbortSignal.timeout(ms) });
         } catch (e) {
-            if (isGet && attempt < MAX_RETRIES) {
-                await sleep(retryDelay(undefined, attempt));
-                return attemptOnce(attempt + 1);
-            }
-            if (e instanceof Error && e.name === "TimeoutError") {
-                throw new Error(`Fiken request timed out after ${ms}ms: ${method} ${path}`);
+            if (isTimeout(e)) throw timedOut();
+            const delay = retryDelay(undefined, attempt);
+            if (isGet && attempt < MAX_NETWORK_RETRIES && mayRetry(delay)) {
+                await sleep(delay);
+                return attemptOnce(attempt + 1, started);
             }
             throw e;
         }
-        if ((r.status === 429 || r.status === 503) && attempt < MAX_RETRIES) {
-            await sleep(retryDelay(r, attempt));
-            return attemptOnce(attempt + 1);
+        if (r.status === 429 || (r.status === 503 && isGet)) {
+            const delay = retryDelay(r, attempt);
+            if (attempt < MAX_RETRIES && mayRetry(delay)) {
+                await sleep(delay);
+                return attemptOnce(attempt + 1, started);
+            }
         }
-        return handle(r);
+        try {
+            return await handle(r);
+        } catch (e) {
+            // The timeout signal also covers reading the response body.
+            throw isTimeout(e) ? timedOut() : e;
+        }
     };
-    return enqueue(() => attemptOnce(0));
+    return enqueue(() => attemptOnce(0, Date.now()));
 }
 
 async function parseMutationResponse(r: Response): Promise<unknown> {
     if (!r.ok) throw await httpError(r);
     if (r.status === 204) return { success: true };
     if (r.status === 201) return { created: true, location: r.headers.get("Location") };
+    const text = await r.text();
     try {
-        return await r.json();
+        return JSON.parse(text);
     } catch {
         return { success: true };
     }
@@ -157,7 +211,8 @@ function getRaw<T>(path: string, params: Params | undefined, pick: (r: Response)
         { headers: { Authorization: `Bearer ${token()}` } },
         async (r) => {
             if (!r.ok) throw await httpError(r);
-            return { data: r.status === 204 ? null : await r.json(), extra: pick(r) };
+            const text = r.status === 204 ? "" : await r.text();
+            return { data: text ? JSON.parse(text) : null, extra: pick(r) };
         },
     );
 }

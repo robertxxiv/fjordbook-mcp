@@ -123,6 +123,53 @@ describe("client", () => {
             expect(String(url)).toBe("https://api.fiken.no/api/v2/user");
         });
 
+        it("returns null on an empty 200 body", async () => {
+            mockFetch.mockResolvedValue(makeResponse(200, ""));
+            expect(await get("/user")).toBeNull();
+        });
+
+        it("truncates long error bodies", async () => {
+            mockFetch.mockResolvedValue(makeResponse(400, "a".repeat(5000)));
+            const err = (await get("/user").catch((e: Error) => e)) as Error;
+            expect(err.message).toBe(`Fiken 400: ${"a".repeat(2000)} ...[truncated]`);
+        });
+
+        describe("path guard", () => {
+            it.each([
+                "/companies/x/../../other",
+                "/companies/x/%2e%2e/y",
+                "/companies/x/%2E%2E/y",
+                "/companies/x/%252e%252e/y",
+                "/companies/x/./y",
+                "/companies/x/..",
+                "/companies/x/a%2fb",
+                "/companies/x/a%2Fb",
+                "/companies/x/a%5cb",
+                "/companies/x/a\\b",
+                "/companies/x/a%00b",
+                "/companies/x/a\nb",
+                "/companies/x/../y?z=1",
+            ])("rejects %s", async (path) => {
+                await expect(get(path)).rejects.toThrow("Invalid path");
+                await expect(mutate("POST", path, {})).rejects.toThrow("Invalid path");
+                expect(mockFetch).not.toHaveBeenCalled();
+            });
+
+            it("rejects paths that leave /api/v2/", async () => {
+                await expect(get("@evil.com/x")).rejects.toThrow("resolves outside");
+                await expect(get("")).rejects.toThrow("resolves outside");
+            });
+
+            it("keeps malformed percent-encoding and query strings working", async () => {
+                mockFetch.mockResolvedValue(makeResponse(200, {}));
+                await get("/companies/x/100%/y");
+                await mutate("POST", "/companies/x/sales/1/delete?description=a/../b", {});
+                expect(String(mockFetch.mock.calls[1][0])).toBe(
+                    "https://api.fiken.no/api/v2/companies/x/sales/1/delete?description=a/../b",
+                );
+            });
+        });
+
         it("converts boolean param to string", async () => {
             mockFetch.mockResolvedValue(makeResponse(200, []));
             await get("/contacts", { customer: true });
@@ -396,16 +443,34 @@ describe("client", () => {
             await expect(mutate("PUT", "/x")).rejects.toThrow("timed out after 30000ms: PUT /x");
         });
 
-        it("retries GET timeouts then reports the timeout", async () => {
-            vi.useFakeTimers();
+        it("does not retry GET timeouts", async () => {
             mockFetch.mockRejectedValue(timeoutErr());
-            const p = get("/x").catch((e: Error) => e);
-            await vi.runAllTimersAsync();
-            expect((await p) as Error).toHaveProperty(
-                "message",
+            await expect(get("/x")).rejects.toThrow(
                 "Fiken request timed out after 30000ms: GET /x",
             );
-            expect(mockFetch).toHaveBeenCalledTimes(4);
+            expect(mockFetch).toHaveBeenCalledTimes(1);
+        });
+
+        it("reports a timeout while reading the body as a clear error", async () => {
+            const slow = {
+                ...makeResponse(200, {}),
+                text: () => Promise.reject(timeoutErr()),
+            };
+            mockFetch.mockResolvedValue(slow);
+            await expect(get("/x")).rejects.toThrow(
+                "Fiken request timed out after 30000ms: GET /x",
+            );
+            await expect(mutate("POST", "/y", {})).rejects.toThrow(
+                "Fiken request timed out after 30000ms: POST /y",
+            );
+        });
+
+        it("rethrows other errors raised while reading the body", async () => {
+            mockFetch.mockResolvedValue({
+                ...makeResponse(200, {}),
+                text: () => Promise.reject(new Error("broken")),
+            });
+            await expect(get("/x")).rejects.toThrow("broken");
         });
     });
 
@@ -422,12 +487,12 @@ describe("client", () => {
             expect(mockFetch).toHaveBeenCalledTimes(3);
         });
 
-        it("rethrows the original GET network error after 3 retries", async () => {
+        it("rethrows the original GET network error after 2 retries", async () => {
             mockFetch.mockRejectedValue(new TypeError("fetch failed"));
             const p = get("/x").catch((e: Error) => e);
             await vi.runAllTimersAsync();
             expect(((await p) as Error).message).toBe("fetch failed");
-            expect(mockFetch).toHaveBeenCalledTimes(4);
+            expect(mockFetch).toHaveBeenCalledTimes(3);
         });
 
         it("does not retry non-GET network errors", async () => {
@@ -445,7 +510,7 @@ describe("client", () => {
             "retries %s on 429 with exponential backoff",
             async (method) => {
                 mockFetch.mockResolvedValueOnce(makeResponse(429, "slow"));
-                mockFetch.mockResolvedValueOnce(makeResponse(503, "busy"));
+                mockFetch.mockResolvedValueOnce(makeResponse(429, "slow"));
                 mockFetch.mockResolvedValueOnce(makeResponse(200, { ok: 1 }));
                 const p = method === "GET" ? get("/x") : mutate(method, "/x", {});
                 await vi.runAllTimersAsync();
@@ -453,6 +518,37 @@ describe("client", () => {
                 expect(mockFetch).toHaveBeenCalledTimes(3);
             },
         );
+
+        it("retries GET on 503", async () => {
+            mockFetch.mockResolvedValueOnce(makeResponse(503, "busy"));
+            mockFetch.mockResolvedValueOnce(makeResponse(200, { ok: 1 }));
+            const p = get("/x");
+            await vi.runAllTimersAsync();
+            expect(await p).toEqual({ ok: 1 });
+            expect(mockFetch).toHaveBeenCalledTimes(2);
+        });
+
+        it.each(["POST", "PUT", "PATCH", "DELETE"])("does not retry %s on 503", async (method) => {
+            mockFetch.mockResolvedValue(makeResponse(503, "busy"));
+            await expect(mutate(method, "/x", {})).rejects.toThrow("Fiken 503: busy");
+            expect(mockFetch).toHaveBeenCalledTimes(1);
+        });
+
+        it("does not retry uploadMultipart on 503", async () => {
+            mockFetch.mockResolvedValue(makeResponse(503, "busy"));
+            await expect(uploadMultipart("/x", undefined, new FormData())).rejects.toThrow(
+                "Fiken 503",
+            );
+            expect(mockFetch).toHaveBeenCalledTimes(1);
+        });
+
+        it("stops retrying once the total time budget is spent", async () => {
+            mockFetch.mockResolvedValue(makeResponse(429, "x", { "Retry-After": "50" }));
+            const p = get("/x").catch((e: Error) => e);
+            await vi.runAllTimersAsync();
+            expect(((await p) as Error).message).toBe("Fiken 429: x");
+            expect(mockFetch).toHaveBeenCalledTimes(2);
+        });
 
         it("retries uploadMultipart on 429", async () => {
             mockFetch.mockResolvedValueOnce(makeResponse(429, "slow"));
