@@ -30,7 +30,6 @@ const dot = loadDotEnv();
 const pick = (k) => process.env[k] || dot[k];
 const token = pick("FIKEN_API_TOKEN");
 const slug = pick("FIKEN_COMPANY_SLUG");
-const allowSlug = process.env.FIKEN_SMOKE_ALLOW_SLUG || undefined;
 
 function abort(msg) {
     console.error(`smoke: refusing to run: ${msg}`);
@@ -42,9 +41,8 @@ if (process.env.FIKEN_SMOKE_CONFIRM !== "yes")
     abort("set FIKEN_SMOKE_CONFIRM=yes to run live tests");
 if (!token) abort("FIKEN_API_TOKEN is not set (environment or .env)");
 if (!slug) abort("FIKEN_COMPANY_SLUG is not set (environment or .env)");
-if (slug !== DEMO_SLUG && allowSlug !== slug) {
-    abort(`slug "${slug}" is not the demo company; set FIKEN_SMOKE_ALLOW_SLUG=${slug} to override`);
-}
+if (slug !== DEMO_SLUG)
+    abort(`slug "${slug}" is not the demo company "${DEMO_SLUG}"; no override exists`);
 
 const redact = (s) => String(s).split(token).join("[redacted]");
 const results = [];
@@ -107,6 +105,10 @@ async function readStep(name, args) {
     const r = await call(name, a);
     if (r.missing) {
         record(name, "SKIP", r.text);
+        return undefined;
+    }
+    if (!r.ok && /Fiken 402/.test(r.text)) {
+        record(name, "SKIP", "module not activated on demo company (402)");
         return undefined;
     }
     if (!r.ok) {
@@ -299,6 +301,283 @@ async function contactCycle(ts) {
     }
 }
 
+let demoVerified = false;
+/** Re-verifies the demo slug before every write phase; false means the phase must not run. */
+async function ensureDemo(phase) {
+    if (slug !== DEMO_SLUG || !demoVerified) {
+        record(`${phase} phase`, "SKIP", "demo company not verified");
+        return false;
+    }
+    const r = await call("fiken_get_company", {});
+    const got = r.data?.slug;
+    if (!r.ok || (got !== undefined && got !== DEMO_SLUG)) {
+        record(`${phase} phase`, "SKIP", `company check failed (slug ${got ?? "unknown"})`);
+        return false;
+    }
+    return true;
+}
+
+/** Minimal one-page PDF generated in memory (no file written). */
+const tinyPdf = (text) =>
+    Buffer.from(
+        `%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 50]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length ${text.length + 33}>>stream\nBT /F1 10 Tf 10 20 Td (${text}) Tj ET\nendstream endobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R/Size 6>>\n%%EOF\n`,
+    );
+
+const today = () => new Date().toISOString().slice(0, 10);
+const bankAccount = async () => {
+    const r = await call("fiken_list_bank_accounts", { page: 0, pageSize: 5 });
+    const items = r.data?.items ?? r.data;
+    return Array.isArray(items)
+        ? items.find((b) => b.accountCode && b.bankAccountNumber)
+        : undefined;
+};
+
+async function cleanup(label, name, args, fallback) {
+    const r = await call(name, args);
+    if (r.ok) return record(`${name} (${label})`, "PASS");
+    record(`${name} (${label})`, "FAIL", r.text);
+    finding(`${name} (${label}): ${redact(r.text).slice(0, 300)}`);
+    if (fallback) {
+        const u = await call(fallback.name, fallback.args);
+        record(
+            `${fallback.name} (${label}, mark inactive)`,
+            u.ok ? "PASS" : "FAIL",
+            u.ok ? "" : u.text,
+        );
+    }
+}
+
+/** Creates a throwaway customer; the caller cleans it up. */
+async function smokeCustomer(ts, label) {
+    const name = `fiken-mcp-smoke-${ts}-${label}`;
+    const body = { name, customer: true };
+    const id = await createAndResolve(
+        "create customer",
+        "fiken_create_contact",
+        body,
+        "fiken_list_contacts",
+        { name },
+    );
+    const cleanupCustomer = () =>
+        cleanup(
+            "customer",
+            "fiken_delete_contact",
+            { contactId: id },
+            {
+                name: "fiken_update_contact",
+                args: { contactId: id, ...body, inactive: true },
+            },
+        );
+    return { id, cleanupCustomer };
+}
+
+const invoiceLine = { quantity: 1, unitPrice: 1000, vatType: "HIGH", incomeAccount: "3000" };
+const draftBase = (ts, customerId, type, bankAccountNumber) => ({
+    bankAccountNumber,
+    type,
+    daysUntilDueDate: 14,
+    customerId,
+    issueDate: today(),
+    invoiceText: `fiken-mcp-smoke-${ts}`,
+    lines: [{ ...invoiceLine, description: `fiken-mcp-smoke-${ts}` }],
+});
+
+/** Invoice draft -> invoice (never sent). Invoices cannot be deleted via the API; the record stays, named fiken-mcp-smoke-<ts>. */
+async function invoiceCycle(ts) {
+    if (!(await ensureDemo("invoice"))) return;
+    const bank = await bankAccount();
+    if (!bank) return record("invoice cycle", "SKIP", "no bank account found");
+    const { id: customerId, cleanupCustomer } = await smokeCustomer(ts, "inv");
+    let draftId;
+    try {
+        if (customerId === undefined) return record("invoice cycle", "SKIP", "no customer id");
+        draftId = await createAndResolve(
+            "create",
+            "fiken_create_invoice_draft",
+            draftBase(ts, customerId, "invoice", bank.bankAccountNumber),
+            "fiken_list_invoice_drafts",
+            {},
+        );
+        if (draftId === undefined) return;
+        await step("get", "fiken_get_invoice_draft", { draftId });
+        if (!(await ensureDemo("invoice (create from draft)"))) return;
+        const inv = await step("from draft", "fiken_create_invoice_from_draft", { draftId });
+        if (!inv) return;
+        draftId = undefined; // consumed by the draft->invoice conversion
+        const invoiceId = idFromLocation(inv.data?.location);
+        if (invoiceId === undefined)
+            return finding("fiken_create_invoice_from_draft: no numeric invoice id in location");
+        await step(
+            "get",
+            "fiken_get_invoice",
+            { invoiceId },
+            {
+                expect: (d) =>
+                    d?.invoiceId === invoiceId || d?.invoiceNumber
+                        ? undefined
+                        : "unexpected invoice body",
+            },
+        );
+        record(
+            "invoice cleanup",
+            "SKIP",
+            `invoices are not deletable; left as fiken-mcp-smoke-${ts} (not sent)`,
+        );
+    } finally {
+        if (draftId !== undefined)
+            await cleanup("draft", "fiken_delete_invoice_draft", { draftId });
+        await cleanupCustomer();
+    }
+}
+
+/** Credit-note draft only (no credit note is issued or sent); the draft is deleted. */
+async function creditNoteDraftCycle(ts) {
+    if (!(await ensureDemo("credit note"))) return;
+    const bank = await bankAccount();
+    if (!bank) return record("credit note cycle", "SKIP", "no bank account found");
+    const { id: customerId, cleanupCustomer } = await smokeCustomer(ts, "cn");
+    let draftId;
+    try {
+        if (customerId === undefined) return record("credit note cycle", "SKIP", "no customer id");
+        draftId = await createAndResolve(
+            "create",
+            "fiken_create_credit_note_draft",
+            draftBase(ts, customerId, "credit_note", bank.bankAccountNumber),
+            "fiken_list_credit_note_drafts",
+            {},
+        );
+        if (draftId !== undefined) await step("get", "fiken_get_credit_note_draft", { draftId });
+    } finally {
+        if (draftId !== undefined)
+            await cleanup("draft", "fiken_delete_credit_note_draft", { draftId });
+        await cleanupCustomer();
+    }
+}
+
+/** External-invoice sale + payment; payment then sale are deleted (sale deletion needs a description). */
+async function salePaymentCycle(ts) {
+    if (!(await ensureDemo("sale payment"))) return;
+    const account = (await bankAccount())?.accountCode;
+    if (!account) return record("sale payment cycle", "SKIP", "no bank account found");
+    const { id: customerId, cleanupCustomer } = await smokeCustomer(ts, "sale");
+    let saleId;
+    let paymentId;
+    try {
+        if (customerId === undefined) return record("sale payment cycle", "SKIP", "no customer id");
+        const r = await step("create", "fiken_create_sale", {
+            date: today(),
+            kind: "external_invoice",
+            currency: "NOK",
+            customerId,
+            dueDate: today(),
+            saleNumber: `smoke-${ts}`,
+            lines: [
+                {
+                    description: `fiken-mcp-smoke-${ts}`,
+                    vatType: "HIGH",
+                    netPrice: 1000,
+                    vat: 250,
+                    account: "3000",
+                },
+            ],
+        });
+        saleId = idFromLocation(r?.data?.location);
+        if (saleId === undefined)
+            return r && finding("fiken_create_sale: no numeric sale id in location");
+        if (!(await ensureDemo("sale payment (pay)"))) return;
+        const p = await step("pay", "fiken_create_sale_payment", {
+            saleId,
+            date: today(),
+            account,
+            amount: 1000,
+        });
+        paymentId = idFromLocation(p?.data?.location);
+        await step("get payments", "fiken_get_sale_payments", { saleId });
+    } finally {
+        if (saleId !== undefined) {
+            if (paymentId !== undefined)
+                await cleanup("payment", "fiken_delete_sale_payment", { saleId, paymentId });
+            await cleanup("sale", "fiken_delete_sale", {
+                saleId,
+                description: `fiken-mcp-smoke-${ts} cleanup`,
+            });
+        }
+        await cleanupCustomer();
+    }
+}
+
+/** Purchase draft + generated attachment; deleting the draft removes both. */
+async function purchaseDraftCycle(ts) {
+    if (!(await ensureDemo("purchase draft"))) return;
+    let draftId;
+    try {
+        draftId = await createAndResolve(
+            "create",
+            "fiken_create_purchase_draft",
+            {
+                cash: false,
+                paid: false,
+                invoiceIssueDate: today(),
+                dueDate: today(),
+                invoiceNumber: `smoke-${ts}`,
+                lines: [
+                    {
+                        text: `fiken-mcp-smoke-${ts}`,
+                        vatType: "NONE",
+                        incomeAccount: "6540",
+                        net: 1000,
+                        gross: 1000,
+                    },
+                ],
+            },
+            "fiken_list_purchase_drafts",
+            {},
+        );
+        if (draftId === undefined) return;
+        if (!(await ensureDemo("purchase draft (attach)"))) return;
+        await step("attach", "fiken_add_purchase_draft_attachment", {
+            draftId,
+            filename: `fiken-mcp-smoke-${ts}.pdf`,
+            fileBase64: tinyPdf(`fiken-mcp-smoke-${ts}`).toString("base64"),
+        });
+        await step(
+            "get attachments",
+            "fiken_get_purchase_draft_attachments",
+            { draftId },
+            {
+                expect: (d) => ((d?.items ?? d)?.length >= 1 ? undefined : "attachment not listed"),
+            },
+        );
+    } finally {
+        if (draftId !== undefined)
+            await cleanup("draft", "fiken_delete_purchase_draft", { draftId });
+    }
+}
+
+/** Journal entry + reversing entry. The API has no delete, so both stay, named fiken-mcp-smoke-<ts>. */
+async function journalEntryCycle(ts) {
+    if (!(await ensureDemo("journal entry"))) return;
+    const bank = (await bankAccount())?.accountCode;
+    if (!bank) return record("journal entry cycle", "SKIP", "no bank account found");
+    const entry = (description, debitAccount, creditAccount) => ({
+        journalEntries: [
+            { description, date: today(), lines: [{ amount: 100, debitAccount, creditAccount }] },
+        ],
+    });
+    const name = `fiken-mcp-smoke-${ts}`;
+    const r = await step("create", "fiken_create_journal_entry", entry(name, "6800", bank));
+    if (!r) return;
+    // The Location id is a transaction id, not a journalEntryId: resolve via the list instead.
+    const l = await call("fiken_list_journal_entries", { date: today(), page: 0, pageSize: 100 });
+    const found = (l.data?.items ?? []).find((j) => String(j.description ?? "").includes(name));
+    if (found?.journalEntryId !== undefined)
+        await step("get", "fiken_get_journal_entry", { journalEntryId: found.journalEntryId });
+    else record("fiken_get_journal_entry (get)", "SKIP", "entry not found in first list page");
+    if (!(await ensureDemo("journal entry (reverse)"))) return;
+    await step("reverse", "fiken_create_journal_entry", entry(`${name} reversal`, bank, "6800"));
+    record("journal entry cleanup", "SKIP", `no delete API; net-zero pair left as ${name}`);
+}
+
 function printReport() {
     const w = Math.max(4, ...results.map((r) => r.name.length));
     console.log(`\n${"tool".padEnd(w)} | result | note`);
@@ -326,9 +605,9 @@ async function main() {
         const list = companies.data?.items ?? companies.data;
         const co = Array.isArray(list) ? list.find((c) => c.slug === slug) : undefined;
         if (!co) record("write phase", "SKIP", "slug not found in fiken_list_companies");
-        else if (!allowSlug && !/demo|test/i.test(co.name ?? ""))
+        else if (!/demo|test/i.test(co.name ?? ""))
             record("write phase", "SKIP", `company name "${co.name}" lacks demo/test`);
-        else writeAllowed = true;
+        else writeAllowed = demoVerified = true;
     }
 
     // Phase 1: read-only.
@@ -360,6 +639,11 @@ async function main() {
         const ts = Date.now();
         await productCycle(ts);
         await contactCycle(ts);
+        await invoiceCycle(ts);
+        await creditNoteDraftCycle(ts);
+        await salePaymentCycle(ts);
+        await purchaseDraftCycle(ts);
+        await journalEntryCycle(ts);
     }
 }
 
