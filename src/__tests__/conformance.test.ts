@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { McpServer as RealMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { _resetForTests } from "../client.js";
 import { register as registerUser } from "../tools/user.js";
 import { register as registerAccounts } from "../tools/accounts.js";
@@ -96,6 +99,7 @@ const server = {
 } as unknown as McpServer;
 for (const register of modules) register(server);
 
+const realSetTimeout = globalThis.setTimeout;
 const SLUG = "test-co";
 const spec = loadSpec();
 
@@ -165,10 +169,9 @@ function isKnown(tool: string, problem: string): boolean {
 /** Parse a valid sample input (distinct id values) for a tool. */
 function sampleInput(tool: Tool) {
     const input = sample(tool.schema, "", { filePath, seq: { n: 0 } }) as Record<string, unknown>;
-    // filePath and fileBase64 are mutually exclusive alternatives: exercise filePath.
-    if ("filePath" in input && "fileBase64" in input) delete input.fileBase64;
-    // Some tools demand exactly one of file / ehf / inbox document: fall back to the file.
-    if (!tool.schema.safeParse(input).success) {
+    // The registered schema is a plain object (the "exactly one source" rule is enforced in the
+    // handler), so keep only filePath when it is a source alternative.
+    if ("filePath" in input) {
         delete input.fileBase64;
         delete input.ehfDocumentId;
         delete input.inboxDocumentId;
@@ -238,6 +241,52 @@ describe("tool registry", () => {
         const names = registered.map((t) => t.name);
         expect(names.filter((n, i) => names.indexOf(n) !== i)).toEqual([]);
         expect(names.length).toBeGreaterThan(0);
+    });
+});
+
+/** Underlying object shape of a registered schema (looks through refine/transform wrappers). */
+function shapeOf(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> {
+    let cur = schema;
+    while (cur instanceof z.ZodEffects) cur = cur._def.schema;
+    return (cur as z.AnyZodObject).shape ?? {};
+}
+
+describe("advertised input schemas (tools/list)", () => {
+    it("lists the real properties and required fields of every tool", async () => {
+        // The suite stubs setTimeout (client request spacing); the MCP SDK needs the real one.
+        vi.stubGlobal("setTimeout", realSetTimeout);
+        const real = new RealMcpServer({ name: "schema-test", version: "0.0.0" });
+        for (const register of modules) register(real);
+        const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+        const client = new Client({ name: "schema-test-client", version: "0.0.0" });
+        await Promise.all([real.connect(serverT), client.connect(clientT)]);
+        const { tools } = await client.listTools();
+        await client.close();
+        vi.stubGlobal("setTimeout", (fn: () => void) => {
+            fn();
+            return 0;
+        });
+
+        expect(tools.map((t) => t.name).sort()).toEqual(registered.map((t) => t.name).sort());
+        const problems: string[] = [];
+        for (const t of tools) {
+            const shape = shapeOf(registered.find((r) => r.name === t.name)!.schema);
+            const keys = Object.keys(shape).sort();
+            const props = Object.keys(t.inputSchema.properties ?? {}).sort();
+            if (t.inputSchema.type !== "object") problems.push(`${t.name}: type is not object`);
+            if (JSON.stringify(props) !== JSON.stringify(keys)) {
+                problems.push(`${t.name}: advertised [${props}] but schema has [${keys}]`);
+            }
+            const required = Object.keys(shape)
+                .filter((k) => !shape[k].isOptional())
+                .sort();
+            const advertised = [...(t.inputSchema.required ?? [])].sort();
+            for (const k of required) {
+                if (!advertised.includes(k))
+                    problems.push(`${t.name}: ${k} not advertised required`);
+            }
+        }
+        expect(problems).toEqual([]);
     });
 });
 

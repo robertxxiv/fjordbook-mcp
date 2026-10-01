@@ -2,14 +2,20 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
 import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
-import { UPLOAD_ENV_NOTE, exactlyOneSource, loadUpload, parseInput } from "./upload.js";
+import {
+    UPLOAD_ENV_NOTE,
+    exactlyOneSource,
+    loadUpload,
+    parseInput,
+    refinedInput,
+} from "./upload.js";
 
 const paging = z.object({ page: pageField, pageSize: pageSizeField });
 
 const dateFilter = (what: string) => z.string().optional().describe(`${what}, format YYYY-MM-DD`);
 
-const inboxDocumentSchema = z
-    .object({
+const { input: inboxDocumentSchema, validated: validatedInboxDocument } = refinedInput(
+    z.object({
         name: z.string().optional().describe("Name of the inbox document, usually the filename"),
         filename: z
             .string()
@@ -20,8 +26,9 @@ const inboxDocumentSchema = z
         description: z.string().optional().describe("Additional description of the inbox document"),
         filePath: z.string().optional().describe("Local path to the file to upload"),
         fileBase64: z.string().optional().describe("Base64-encoded file contents"),
-    })
-    .superRefine(exactlyOneSource(false));
+    }),
+    exactlyOneSource(false),
+);
 
 export function register(server: McpServer) {
     // Products / reports
@@ -86,7 +93,7 @@ export function register(server: McpServer) {
         async (raw) => {
             try {
                 const { name, filename, description, filePath, fileBase64 } = parseInput(
-                    inboxDocumentSchema,
+                    validatedInboxDocument,
                     raw,
                 );
                 const upload = await loadUpload({ filename, filePath, fileBase64 });

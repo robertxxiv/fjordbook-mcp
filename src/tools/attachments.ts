@@ -6,6 +6,7 @@ import {
     UPLOAD_ENV_NOTE,
     SUPPORTED_EXTENSIONS_TEXT,
     exactlyOneSource,
+    refinedInput,
     loadUpload,
     parseInput,
     type UploadSource,
@@ -137,7 +138,10 @@ function registerUpload(server: McpServer, r: Resource) {
         ...r.form,
         ...r.query,
     };
-    const inputSchema = z.object(shape).superRefine(exactlyOneSource(!!r.documentIds));
+    const { input: inputSchema, validated } = refinedInput(
+        z.object(shape),
+        exactlyOneSource(!!r.documentIds),
+    );
     const idKey = r.idParam;
     const formKeys = Object.keys(r.form ?? {});
     const queryKeys = Object.keys(r.query ?? {});
@@ -158,7 +162,7 @@ function registerUpload(server: McpServer, r: Resource) {
         },
         async (raw) => {
             try {
-                const p = parseInput(inputSchema, raw) as Record<string, unknown>;
+                const p = parseInput(validated, raw) as Record<string, unknown>;
                 const form = new FormData();
                 if (p.filePath || p.fileBase64) {
                     const { filename, blob } = await loadUpload(p as UploadSource);
