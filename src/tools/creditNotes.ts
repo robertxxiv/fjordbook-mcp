@@ -92,7 +92,7 @@ export function register(server: McpServer) {
         {
             ...R,
             description: "Returns a specific credit note by ID",
-            inputSchema: z.object({ creditNoteId: z.string().describe("Credit note ID") }),
+            inputSchema: z.object({ creditNoteId: z.number().int().describe("Credit note ID") }),
         },
         async ({ creditNoteId }) => {
             try {

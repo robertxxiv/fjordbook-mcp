@@ -60,14 +60,14 @@ describe("fiken_get_offer", () => {
     it("calls GET /offers/{offerId}", async () => {
         const data = { offerId: 1, offerNumber: 1 };
         mockGet.mockResolvedValue(data);
-        const result = await server.getHandler("fiken_get_offer")({ offerId: "1" });
+        const result = await server.getHandler("fiken_get_offer")({ offerId: 1 });
         expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/offers/1");
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
     });
 
     it("returns error on failure", async () => {
         mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
-        const result = await server.getHandler("fiken_get_offer")({ offerId: "999" });
+        const result = await server.getHandler("fiken_get_offer")({ offerId: 999 });
         expect(result.isError).toBe(true);
     });
 });

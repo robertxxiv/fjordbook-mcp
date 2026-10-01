@@ -6,21 +6,37 @@ import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } f
 const saleLine = z.object({
     description: z.string().describe("Description of the product or service"),
     vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
-    netPrice: z.number().int().optional().describe("Net amount in cents"),
-    vat: z.number().int().optional(),
+    netPrice: z
+        .number()
+        .int()
+        .optional()
+        .describe("Net amount in cents (øre): 500000 = 5000.00 NOK"),
+    vat: z.number().int().optional().describe("VAT amount in cents (øre): 125000 = 1250.00 NOK"),
     account: z.string().optional().describe('Account code, e.g. "3000"'),
-    netPriceInCurrency: z.number().int().optional().describe("Net amount in currency cents"),
-    vatInCurrency: z.number().int().optional().describe("VAT amount in currency cents"),
+    netPriceInCurrency: z
+        .number()
+        .int()
+        .optional()
+        .describe("Net amount in currency cents: 500000 = 5000.00"),
+    vatInCurrency: z
+        .number()
+        .int()
+        .optional()
+        .describe("VAT amount in currency cents: 125000 = 1250.00"),
     projectId: z.number().int().optional(),
 });
 
 const paymentSchema = z.object({
     date: z.string().describe("Payment date YYYY-MM-DD"),
     account: z.string().describe('Payment account, e.g. "1920:10001"'),
-    amount: z.number().int().describe("Amount paid in cents"),
-    amountInNok: z.number().int().optional().describe("NOK amount for foreign currency payments"),
+    amount: z.number().int().describe("Amount paid in cents (øre): 500000 = 5000.00 NOK"),
+    amountInNok: z
+        .number()
+        .int()
+        .optional()
+        .describe("NOK amount for foreign currency payments, in cents (øre): 500000 = 5000.00 NOK"),
     currency: z.string().optional().describe('ISO 4217, e.g. "NOK"'),
-    fee: z.number().int().optional().describe("Payment fee in NOK cents"),
+    fee: z.number().int().optional().describe("Payment fee in NOK cents (øre): 1500 = 15.00 NOK"),
 });
 
 const accrualSchema = z.object({
@@ -43,8 +59,8 @@ const draftLine = z.object({
     text: z.string().describe("Description of the sale/purchase line"),
     vatType: z.string().describe('e.g. "HIGH", "NONE", "LOW"'),
     incomeAccount: z.string().describe('Account code, e.g. "3000"'),
-    net: z.number().int().describe("Net amount in cents"),
-    gross: z.number().int().describe("Gross amount in cents"),
+    net: z.number().int().describe("Net amount in cents (øre): 500000 = 5000.00 NOK"),
+    gross: z.number().int().describe("Gross amount in cents (øre): 625000 = 6250.00 NOK"),
     projectId: z.number().int().optional(),
 });
 
@@ -105,19 +121,27 @@ export function register(server: McpServer) {
                 kind: z
                     .enum(["cash_sale", "invoice", "external_invoice"])
                     .describe("Kind of sale: cash_sale, invoice or external_invoice"),
-                totalPaid: z.number().int().optional().describe("Total paid in NOK øre"),
+                totalPaid: z
+                    .number()
+                    .int()
+                    .optional()
+                    .describe("Total paid in cents (øre): 500000 = 5000.00 NOK"),
                 totalPaidInCurrency: z
                     .number()
                     .int()
                     .optional()
-                    .describe("Total paid in currency cents"),
+                    .describe("Total paid in currency cents: 500000 = 5000.00"),
                 currency: z.string().describe('ISO 4217, e.g. "NOK"'),
                 saleNumber: z.string().optional(),
                 customerId: z.number().int().optional().describe("Customer contact ID"),
                 dueDate: z.string().optional().describe("YYYY-MM-DD"),
                 kid: z.string().optional().describe("Norwegian KID number"),
                 paymentDate: z.string().optional().describe("Payment date YYYY-MM-DD"),
-                paymentFee: z.number().int().optional().describe("Payment fee in NOK cents"),
+                paymentFee: z
+                    .number()
+                    .int()
+                    .optional()
+                    .describe("Payment fee in NOK cents (øre): 1500 = 15.00 NOK"),
                 paymentAccount: z
                     .string()
                     .optional()
@@ -310,7 +334,7 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_settle_sale",
         {
-            ...W,
+            ...D,
             description:
                 'Marks a sale as settled without payment ("sett til oppgjort uten betaling"). Send a new settledDate to change the settlement date',
             inputSchema: z.object({
@@ -335,7 +359,7 @@ export function register(server: McpServer) {
     server.registerTool(
         "fiken_write_off_sale",
         {
-            ...W,
+            ...D,
             description:
                 "Registers a write-off (tapsføring) for a sale. The sale must not be a cash sale, already written off, settled or deleted, and must have an outstanding balance. The write-off date must be after the sale date",
             inputSchema: z.object({

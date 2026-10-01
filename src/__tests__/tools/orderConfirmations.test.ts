@@ -64,7 +64,7 @@ describe("fiken_get_order_confirmation", () => {
         const data = { confirmationId: 1, confirmationNumber: 1 };
         mockGet.mockResolvedValue(data);
         const result = await server.getHandler("fiken_get_order_confirmation")({
-            confirmationId: "1",
+            confirmationId: 1,
         });
         expect(mockGet).toHaveBeenCalledWith("/companies/test-slug/orderConfirmations/1");
         expect(result.content[0].text).toBe(JSON.stringify(data, null, 2));
@@ -73,7 +73,7 @@ describe("fiken_get_order_confirmation", () => {
     it("returns error on failure", async () => {
         mockGet.mockRejectedValue(new Error("Fiken 404: Not Found"));
         const result = await server.getHandler("fiken_get_order_confirmation")({
-            confirmationId: "999",
+            confirmationId: 999,
         });
         expect(result.isError).toBe(true);
     });
@@ -127,7 +127,7 @@ describe("fiken_create_invoice_draft_from_order_confirmation", () => {
         const result = await server.getHandler(
             "fiken_create_invoice_draft_from_order_confirmation",
         )({
-            confirmationId: "1",
+            confirmationId: 1,
         });
         expect(mockMutate).toHaveBeenCalledWith(
             "POST",
@@ -141,7 +141,7 @@ describe("fiken_create_invoice_draft_from_order_confirmation", () => {
         const result = await server.getHandler(
             "fiken_create_invoice_draft_from_order_confirmation",
         )({
-            confirmationId: "999",
+            confirmationId: 999,
         });
         expect(result.isError).toBe(true);
     });

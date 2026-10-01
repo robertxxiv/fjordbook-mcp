@@ -227,3 +227,27 @@ describe("fiken_list_bank_balances", () => {
         );
     });
 });
+
+describe("account code schema", () => {
+    type Cfg = { inputSchema: { safeParse: (v: unknown) => { success: boolean } } };
+    const configs = new Map<string, Cfg>();
+    beforeAll(() => {
+        register({
+            registerTool: (name: string, config: Cfg) => configs.set(name, config),
+        } as never);
+    });
+
+    it.each(["fiken_get_account", "fiken_get_account_balance"])(
+        "%s accepts only 4-digit codes with optional sub-account",
+        (name) => {
+            const schema = configs.get(name)!.inputSchema;
+            const base = name === "fiken_get_account" ? {} : { date: "2024-01-01" };
+            for (const ok of ["3020", "1500:10001"]) {
+                expect(schema.safeParse({ ...base, accountCode: ok }).success).toBe(true);
+            }
+            for (const bad of ["../users", "3020/x", "302", "3020:", "3020?x=1", "abcd"]) {
+                expect(schema.safeParse({ ...base, accountCode: bad }).success).toBe(false);
+            }
+        },
+    );
+});

@@ -3,6 +3,13 @@ import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
 import { R, W, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
+const accountCodeField = z
+    .string()
+    .regex(/^\d{4}(:\d+)?$/)
+    .describe(
+        'Account code: 4 digits, optionally ":" and a sub-account number, e.g. "3020" or "1500:10001"',
+    );
+
 export function register(server: McpServer) {
     server.registerTool(
         "fiken_list_accounts",
@@ -37,7 +44,7 @@ export function register(server: McpServer) {
             ...R,
             description: "Retrieves a specific bookkeeping account by account code",
             inputSchema: z.object({
-                accountCode: z.string().describe('Account code, e.g. "3020" or "1500:10001"'),
+                accountCode: accountCodeField,
             }),
         },
         async ({ accountCode }) => {
@@ -78,7 +85,7 @@ export function register(server: McpServer) {
             ...R,
             description: "Retrieves a specific account and its balance for a given date",
             inputSchema: z.object({
-                accountCode: z.string().describe("Account code"),
+                accountCode: accountCodeField,
                 date: z.string().describe("Date in YYYY-MM-DD format (required)"),
             }),
         },

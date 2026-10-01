@@ -632,3 +632,17 @@ describe("fiken_delete_sale_accrual", () => {
         expect(result.content[0].text).toBe("Error: 42");
     });
 });
+
+describe("sale annotations and money fields", () => {
+    type Cfg = { annotations?: { destructiveHint?: boolean } };
+    const configs = new Map<string, Cfg>();
+    beforeAll(() => {
+        register({
+            registerTool: (name: string, config: Cfg) => configs.set(name, config),
+        } as never);
+    });
+
+    it.each(["fiken_settle_sale", "fiken_write_off_sale"])("%s is destructive", (name) => {
+        expect(configs.get(name)!.annotations?.destructiveHint).toBe(true);
+    });
+});
