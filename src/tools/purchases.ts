@@ -2,7 +2,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { get, getWithMeta, mutate, cp, uploadMultipart } from "../client.js";
 import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
-import { UPLOAD_ENV_NOTE, exactlyOneSource, loadUpload, parseInput } from "./upload.js";
+import {
+    UPLOAD_ENV_NOTE,
+    exactlyOneSource,
+    loadUpload,
+    parseInput,
+    refinedInput,
+} from "./upload.js";
 
 const purchaseLine = z.object({
     description: z.string().describe("Description of the product or service"),
@@ -73,8 +79,8 @@ const draftSchema = z.object({
     lines: z.array(draftLine),
 });
 
-const attachmentSchema = z
-    .object({
+const { input: attachmentSchema, validated: validatedAttachment } = refinedInput(
+    z.object({
         purchaseId: z.number().int(),
         filename: z
             .string()
@@ -102,8 +108,8 @@ const attachmentSchema = z
             .boolean()
             .optional()
             .describe("True if the attachment documents the purchase (e.g. invoice)"),
-    })
-    .superRefine((value, ctx) => {
+    }),
+    (value, ctx) => {
         exactlyOneSource(true)(value, ctx);
         if (!value.attachToPayment && !value.attachToSale) {
             ctx.addIssue({
@@ -111,7 +117,8 @@ const attachmentSchema = z
                 message: "At least one of attachToPayment or attachToSale must be true",
             });
         }
-    });
+    },
+);
 
 export function register(server: McpServer) {
     server.registerTool(
@@ -270,7 +277,7 @@ export function register(server: McpServer) {
                     inboxDocumentId,
                     attachToPayment,
                     attachToSale,
-                } = parseInput(attachmentSchema, rawInput);
+                } = parseInput(validatedAttachment, rawInput);
                 const form = new FormData();
                 if (ehfDocumentId === undefined && inboxDocumentId === undefined) {
                     const { filename: name, blob } = await loadUpload({

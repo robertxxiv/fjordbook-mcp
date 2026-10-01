@@ -171,3 +171,14 @@ export function parseInput<S extends z.ZodTypeAny>(schema: S, raw: unknown): z.o
     }
     return result.data;
 }
+
+/**
+ * Pairs the plain object schema (advertised via tools/list, because the MCP SDK cannot derive a
+ * JSON schema from a refined ZodEffects) with the refined schema used for runtime validation.
+ */
+export function refinedInput<T extends z.ZodRawShape>(
+    object: z.ZodObject<T>,
+    refine: (value: z.output<z.ZodObject<T>>, ctx: z.RefinementCtx) => void,
+) {
+    return { input: object, validated: object.superRefine(refine) };
+}
