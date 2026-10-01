@@ -19,7 +19,10 @@ const purchaseLine = z.object({
         .int()
         .optional()
         .describe("VAT amount in cents (øre), e.g. 500000 = 5000.00 NOK"),
-    account: z.string().optional().describe('Account code, e.g. "6540"'),
+    account: z
+        .string()
+        .optional()
+        .describe('Account code, e.g. "6540"; must exist in the chart and be valid for vatType'),
     netPriceInCurrency: z.number().int().optional().describe("Net amount in currency cents"),
     vatInCurrency: z.number().int().optional().describe("VAT amount in currency cents"),
     projectId: z.number().int().optional(),
@@ -165,7 +168,8 @@ export function register(server: McpServer) {
         "fiken_create_purchase",
         {
             ...W,
-            description: "Creates a new purchase. Amounts in NOK øre.",
+            description:
+                "Creates a new purchase. Amounts in NOK øre. Fiken enforces account/VAT combinations: the account must exist in the chart of accounts (e.g. 7350 accepts only vatType NONE), and cash purchases (paid immediately) require paymentDate equal to date.",
             inputSchema: z.object({
                 identifier: z.string().optional().describe("Invoice/sale number or similar"),
                 date: z.string().describe("Purchase date YYYY-MM-DD"),

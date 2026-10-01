@@ -19,7 +19,10 @@ const invoiceLine = z.object({
     productId: z.number().int().optional(),
     description: z.string().optional(),
     comment: z.string().optional(),
-    incomeAccount: z.string().optional(),
+    incomeAccount: z
+        .string()
+        .optional()
+        .describe('Income account, e.g. "3000"; must match vatType (3000 only HIGH)'),
 });
 
 export const draftLine = z.object({
@@ -146,7 +149,8 @@ export function register(server: McpServer) {
         "fiken_create_invoice",
         {
             ...W,
-            description: "Creates a new invoice. Amounts are in NOK øre (cents).",
+            description:
+                "Creates a new invoice. Amounts are in NOK øre (cents). Each line's incomeAccount must exist in the chart of accounts and match its vatType (e.g. 3000 accepts only HIGH, 3100 only EXEMPT, 3200 only OUTSIDE).",
             inputSchema: z.object({
                 uuid: z.string().optional(),
                 issueDate: z.string().describe("Issue date YYYY-MM-DD (required)"),

@@ -12,7 +12,10 @@ const saleLine = z.object({
         .optional()
         .describe("Net amount in cents (øre): 500000 = 5000.00 NOK"),
     vat: z.number().int().optional().describe("VAT amount in cents (øre): 125000 = 1250.00 NOK"),
-    account: z.string().optional().describe('Account code, e.g. "3000"'),
+    account: z
+        .string()
+        .optional()
+        .describe('Account code, e.g. "3000"; must exist in the chart and be valid for vatType'),
     netPriceInCurrency: z
         .number()
         .int()
@@ -115,7 +118,8 @@ export function register(server: McpServer) {
         "fiken_create_sale",
         {
             ...W,
-            description: "Creates a new sale. Amounts in NOK øre.",
+            description:
+                "Creates a new sale. Amounts in NOK øre. Fiken enforces account/VAT combinations: the account must exist in the chart of accounts (e.g. 3000 accepts only vatType HIGH, 3100 only EXEMPT, 3200 only OUTSIDE), and cash sales (kind cash_sale) require paymentDate equal to date.",
             inputSchema: z.object({
                 date: z.string().describe("Sale date YYYY-MM-DD"),
                 kind: z

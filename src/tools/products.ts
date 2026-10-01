@@ -65,7 +65,8 @@ export function register(server: McpServer) {
         "fiken_create_product",
         {
             ...W,
-            description: "Creates a new product. Amounts are in cents.",
+            description:
+                "Creates a new product. Amounts are in cents. Fiken enforces account/VAT combinations: incomeAccount must exist in the chart of accounts and match vatType (e.g. 3000 accepts only HIGH, 3100 only EXEMPT, 3200 only OUTSIDE).",
             inputSchema: z.object(productBody),
         },
         async (body) => {
