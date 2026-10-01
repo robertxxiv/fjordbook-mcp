@@ -110,7 +110,7 @@ export function register(server: McpServer) {
         {
             ...D,
             description:
-                "Updates an existing product (full replacement; send all fields) Replaces the whole record: send every field you want to keep.",
+                "Updates an existing product (full replacement; send all fields). Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({ productId, ...productBody }),
         },
         async ({ productId, ...body }) => {

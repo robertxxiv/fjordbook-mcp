@@ -174,7 +174,7 @@ export function register(server: McpServer) {
         {
             ...D,
             description:
-                "Replaces an existing contact (PUT: all fields are overwritten, so name is required and omitted optional fields are cleared) Replaces the whole record: send every field you want to keep.",
+                "Replaces an existing contact (PUT: all fields are overwritten, so name is required and omitted optional fields are cleared). Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 contactId: z.number().int(),
                 ...contactSchema.shape,
@@ -268,7 +268,7 @@ export function register(server: McpServer) {
         {
             ...D,
             description:
-                "Replaces a contact person (PUT: name and email are required) Replaces the whole record: send every field you want to keep.",
+                "Replaces a contact person (PUT: name and email are required). Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 contactId: z.number().int(),
                 contactPersonId: z.number().int(),

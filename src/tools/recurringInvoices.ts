@@ -149,7 +149,7 @@ export function register(server: McpServer) {
         {
             ...D,
             description:
-                "Updates description, frequency and days-until-due of a recurring invoice (applies to every job) Replaces the whole record: send every field you want to keep.",
+                "Updates description, frequency and days-until-due of a recurring invoice (applies to every job). Replaces the whole record: send every field you want to keep.",
             inputSchema: z.object({
                 recurringInvoiceId,
                 description: z.string().max(250).optional().describe("Description (max 250 chars)"),
