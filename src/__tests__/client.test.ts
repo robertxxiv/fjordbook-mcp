@@ -366,6 +366,21 @@ describe("client", () => {
             expect((err as Error).message).not.toContain("test-token");
         });
 
+        it.each([
+            ['{"error_description":"Offer counter not initialized"}'],
+            ['{"message":"Something specific"}'],
+        ])("omits the token hint when the body is specific: %s", async (body) => {
+            mockFetch.mockResolvedValue(makeResponse(401, body));
+            const err = await get("/x").catch((e: Error) => e);
+            expect((err as Error).message).toContain(body);
+            expect((err as Error).message).not.toContain("FIKEN_API_TOKEN");
+        });
+
+        it("keeps the hint for JSON bodies without a message", async () => {
+            mockFetch.mockResolvedValue(makeResponse(401, '{"error":"x"}'));
+            await expect(get("/x")).rejects.toThrow("FIKEN_API_TOKEN");
+        });
+
         it("adds the hint for mutations too", async () => {
             mockFetch.mockResolvedValue(makeResponse(401, "no"));
             await expect(mutate("POST", "/p", {})).rejects.toThrow("check that FIKEN_API_TOKEN");

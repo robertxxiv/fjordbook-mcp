@@ -116,12 +116,28 @@ function retryDelay(r: Response | undefined, attempt: number): number {
     return Math.min(ms, MAX_DELAY_MS);
 }
 
+const AUTH_HINT = " (authentication failed: check that FIKEN_API_TOKEN is valid and has access)";
+
+/** True when the body carries a specific Fiken message, i.e. the failure is not a generic auth rejection. */
+function hasSpecificMessage(body: string): boolean {
+    try {
+        const j: unknown = JSON.parse(body);
+        if (j && typeof j === "object") {
+            const o = j as Record<string, unknown>;
+            return [o.error_description, o.message].some((v) => typeof v === "string" && v !== "");
+        }
+    } catch {
+        // not JSON: generic body
+    }
+    return false;
+}
+
 async function httpError(r: Response): Promise<Error> {
-    const hint =
-        r.status === 401 || r.status === 403
-            ? " (authentication failed: check that FIKEN_API_TOKEN is valid and has access)"
-            : "";
     let body = await r.text();
+    // Fiken also answers 401 for non-auth reasons (e.g. "Offer counter not initialized"), so only
+    // hint at the token when the body gives no specific reason.
+    const hint =
+        (r.status === 401 || r.status === 403) && !hasSpecificMessage(body) ? AUTH_HINT : "";
     if (body.length > MAX_ERROR_BODY) body = `${body.slice(0, MAX_ERROR_BODY)} ...[truncated]`;
     return new Error(`Fiken ${r.status}: ${body}${hint}`);
 }

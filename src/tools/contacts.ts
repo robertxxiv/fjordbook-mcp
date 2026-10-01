@@ -3,21 +3,23 @@ import { z } from "zod";
 import { get, getWithMeta, mutate, cp } from "../client.js";
 import { R, W, D, ok, okList, err, pageField, pageSizeField, PAGINATION_NOTE } from "./shared.js";
 
-const addressSchema = z
-    .object({
-        streetAddress: z.string().optional(),
-        streetAddressLine2: z.string().optional(),
-        city: z.string().optional(),
-        postCode: z.string().optional(),
-        country: z.string().describe('Country, e.g. "Norway" (required when address is given)'),
-    })
-    .optional();
+// Factory: a shared instance makes the schema generator emit a $ref for the second use.
+const addressSchema = () =>
+    z
+        .object({
+            streetAddress: z.string().optional(),
+            streetAddressLine2: z.string().optional(),
+            city: z.string().optional(),
+            postCode: z.string().optional(),
+            country: z.string().describe('Country, e.g. "Norway" (required when address is given)'),
+        })
+        .optional();
 
 const contactPersonFields = {
     name: z.string().describe("Name of the contact person (required)"),
     email: z.string().describe("Email of the contact person (required)"),
     phoneNumber: z.string().optional(),
-    address: addressSchema,
+    address: addressSchema(),
 };
 
 const contactSchema = z.object({
@@ -43,7 +45,7 @@ const contactSchema = z.object({
         .string()
         .optional()
         .describe("String id connecting the contact to your own data"),
-    address: addressSchema,
+    address: addressSchema(),
     contactPerson: z
         .array(z.object(contactPersonFields))
         .optional()

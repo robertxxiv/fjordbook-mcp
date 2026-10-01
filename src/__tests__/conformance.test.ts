@@ -274,6 +274,8 @@ describe("advertised input schemas (tools/list)", () => {
             const keys = Object.keys(shape).sort();
             const props = Object.keys(t.inputSchema.properties ?? {}).sort();
             if (t.inputSchema.type !== "object") problems.push(`${t.name}: type is not object`);
+            if (JSON.stringify(t.inputSchema).includes('"$ref"'))
+                problems.push(`${t.name}: advertised schema contains a $ref (shared zod instance)`);
             if (JSON.stringify(props) !== JSON.stringify(keys)) {
                 problems.push(`${t.name}: advertised [${props}] but schema has [${keys}]`);
             }
