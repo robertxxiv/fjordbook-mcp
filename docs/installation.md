@@ -68,7 +68,7 @@ Restart the client, then ask: _"Who am I in Fiken?"_ (calls `fiken_get_user`) or
 
 ## Small context windows and local models
 
-The full server exposes 189 tools, about 47k tokens of tool definitions. Small or local models cannot afford that. Expose only the areas you need with `FIKEN_TOOLSETS`:
+With `FIKEN_DRAFT_ONLY=false`, the full server exposes 189 tools, about 47k tokens of tool definitions. Small or local models cannot afford that. Expose only the areas you need with `FIKEN_TOOLSETS`:
 
 ```json
 "env": {
@@ -78,16 +78,27 @@ The full server exposes 189 tools, about 47k tokens of tool definitions. Small o
 }
 ```
 
+By default, an agent can prepare drafts for an operator to finalize in Fiken.
+This exposes read tools, draft creation and updates, and draft attachments.
+It hides finalization, sending, payments, journal entries, and deletion tools.
+Set `"FIKEN_DRAFT_ONLY": "false"` in the same `env` block to expose all tools.
+Set it to `"true"` or remove it to restore draft-only mode, then restart the
+MCP client. `FIKEN_TOOLSETS` still
+controls which groups are available; include `purchases`, `sales`, `invoices`,
+or `creditNotes` as needed. This setting limits this MCP server instance; the
+operator can still finalize drafts in Fiken.
+
 Valid names: `user`, `accounts`, `contacts`, `invoices`, `creditNotes`, `offers`, `orderConfirmations`, `journalEntries`, `transactions`, `purchases`, `sales`, `misc`, `recurringInvoices`, `products`, `timeTracking`, `attachments`. `user` is always included. A typo aborts startup with a list of valid names.
 
 ## Optional settings
 
-| Variable                 | Default    | Purpose                                                       |
-| :----------------------- | :--------- | :------------------------------------------------------------ |
-| `FIKEN_TIMEOUT_MS`       | `30000`    | Per-request timeout                                           |
-| `FIKEN_TOOLSETS`         | all        | Comma-separated toolsets to expose                            |
-| `FIKEN_UPLOAD_ROOT`      | unset      | Attachment uploads by file path must be inside this directory |
-| `FIKEN_MAX_UPLOAD_BYTES` | `26214400` | Maximum attachment size (25 MB)                               |
+| Variable                 | Default    | Purpose                                                         |
+| :----------------------- | :--------- | :-------------------------------------------------------------- |
+| `FIKEN_TIMEOUT_MS`       | `30000`    | Per-request timeout                                             |
+| `FIKEN_TOOLSETS`         | all        | Comma-separated toolsets to expose                              |
+| `FIKEN_DRAFT_ONLY`       | true       | Expose reads and draft preparation writes only (`true`/`false`) |
+| `FIKEN_UPLOAD_ROOT`      | unset      | Attachment uploads by file path must be inside this directory   |
+| `FIKEN_MAX_UPLOAD_BYTES` | `26214400` | Maximum attachment size (25 MB)                                 |
 
 ## Troubleshooting
 
