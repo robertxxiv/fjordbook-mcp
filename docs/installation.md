@@ -116,4 +116,4 @@ Valid names: `user`, `accounts`, `contacts`, `invoices`, `creditNotes`, `offers`
 
 ## Updating and uninstalling
 
-`npx -y fjordbook-mcp` fetches the latest version on a cold cache; pin one with `fjordbook-mcp@1.0.0`. To uninstall, remove the server entry from your client config and revoke the token in Fiken.
+`npx -y fjordbook-mcp` fetches the latest version on a cold cache; pin one with `fjordbook-mcp@2.0.0`. To uninstall, remove the server entry from your client config and revoke the token in Fiken.
