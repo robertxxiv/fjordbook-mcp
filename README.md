@@ -9,6 +9,12 @@ Mutating tools are annotated so MCP clients can require your approval before the
 
 Fjordbook started as a fork of [gronnmann/fiken-mcp](https://github.com/gronnmann/fiken-mcp) and has since been extended and hardened into a separate project (full API coverage, safer client, toolset filtering, live smoke test).
 
+## Copy this to your AI agent
+
+```text
+Install and configure fjordbook-mcp@2.0.0 as a stdio MCP server for this client using npx -y fjordbook-mcp@2.0.0; ask me for FIKEN_API_TOKEN and FIKEN_COMPANY_SLUG through a secure method, keep draft-only mode enabled, reconnect, and verify access with fiken_get_user.
+```
+
 ---
 
 ## Quick start
