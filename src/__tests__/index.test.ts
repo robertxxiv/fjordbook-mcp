@@ -85,4 +85,18 @@ describe("index", () => {
         expect(registerTimeTracking).toHaveBeenCalledWith(serverInstance);
         expect(registerAttachments).toHaveBeenCalledWith(serverInstance);
     });
+
+    it("registers unrestricted tools when draft mode is explicitly disabled", async () => {
+        const previous = process.env.FIKEN_DRAFT_ONLY;
+        process.env.FIKEN_DRAFT_ONLY = "false";
+        try {
+            vi.resetModules();
+            await import("../index.js");
+            const serverInstance = MockMcpServer.mock.results.at(-1)?.value;
+            expect(registerUser).toHaveBeenLastCalledWith(serverInstance);
+        } finally {
+            if (previous === undefined) delete process.env.FIKEN_DRAFT_ONLY;
+            else process.env.FIKEN_DRAFT_ONLY = previous;
+        }
+    });
 });
