@@ -1,6 +1,6 @@
 {
     "name": "fjordbook-mcp",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "MCP server for the Fiken accounting API v2: all 189 operations as tools for Claude, Cursor and other MCP clients",
     "type": "module",
     "main": "build/index.js",

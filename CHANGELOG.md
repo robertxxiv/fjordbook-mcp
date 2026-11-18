@@ -1,5 +1,11 @@
 # fjordbook-mcp
 
+## 2.0.0
+
+### Major Changes
+
+- 4ae15b5: Make draft-only access the default. Set `FIKEN_DRAFT_ONLY=false` to expose finalization and other write tools.
+
 ## 1.0.0
 
 First release of Fjordbook, a fork of [gronnmann/fiken-mcp](https://github.com/gronnmann/fiken-mcp) extended into a standalone project.
